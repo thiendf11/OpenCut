@@ -2,10 +2,12 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { CanvasPreset } from "@/types/editor";
 
-export type PlatformLayout = "tiktok";
+export type PlatformLayout = "tiktok" | "youtubeShort" | "instagramReel";
 
 export const PLATFORM_LAYOUTS: Record<PlatformLayout, string> = {
   tiktok: "TikTok",
+  youtubeShort: "YouTube Short",
+  instagramReel: "Instagram Reel",
 };
 
 interface LayoutGuideSettings {
