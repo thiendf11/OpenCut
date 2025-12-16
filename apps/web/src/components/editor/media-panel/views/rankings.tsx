@@ -401,10 +401,14 @@ export function RankingsView() {
         const videoId = videoIdMatch[1];
         console.log(`Fetching TikTok video ID: ${videoId}`);
 
-        // Fetch video data from API
-        const response = await fetch(
-          `https://api.twitterpicker.com/tiktok/mediav2?id=${videoId}`
-        );
+        // Fetch video data from API via proxy (with localhost origin)
+        const response = await fetch("/api/fetch-tiktok", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ videoId }),
+        });
 
         if (!response.ok) {
           throw new Error(`API error: ${response.status}`);
