@@ -21,6 +21,7 @@ export async function generateThumbnail({
   videoFile: File;
   timeInSeconds: number;
 }): Promise<string> {
+  debugger;
   const input = new Input({
     source: new BlobSource(videoFile),
     formats: ALL_FORMATS,
@@ -210,14 +211,18 @@ export const extractTimelineAudio = async (
 
       const filterName = `audio_${i}`;
       filterInputs.push(
-        `[${i}:a]atrim=start=${actualStart}:duration=${actualDuration},asetpts=PTS-STARTPTS,adelay=${element.startTime * 1000}|${element.startTime * 1000}[${filterName}]`
+        `[${i}:a]atrim=start=${actualStart}:duration=${actualDuration},asetpts=PTS-STARTPTS,adelay=${
+          element.startTime * 1000
+        }|${element.startTime * 1000}[${filterName}]`
       );
     }
 
     const mixFilter =
       audioElements.length === 1
         ? `[audio_0]aresample=44100,aformat=sample_fmts=s16:channel_layouts=stereo[out]`
-        : `${filterInputs.map((_, i) => `[audio_${i}]`).join("")}amix=inputs=${audioElements.length}:duration=longest:dropout_transition=2,aresample=44100,aformat=sample_fmts=s16:channel_layouts=stereo[out]`;
+        : `${filterInputs.map((_, i) => `[audio_${i}]`).join("")}amix=inputs=${
+            audioElements.length
+          }:duration=longest:dropout_transition=2,aresample=44100,aformat=sample_fmts=s16:channel_layouts=stereo[out]`;
 
     const complexFilter = [...filterInputs, mixFilter].join(";");
     const outputName = "timeline_audio.wav";

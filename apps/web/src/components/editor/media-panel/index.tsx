@@ -9,6 +9,7 @@ import { StickersView } from "./views/stickers";
 import { Separator } from "@/components/ui/separator";
 import { SettingsView } from "./views/settings";
 import { Captions } from "./views/captions";
+import { RankingsView } from "./views/rankings";
 
 export function MediaPanel() {
   const { activeTab } = useMediaPanelStore();
@@ -39,6 +40,7 @@ export function MediaPanel() {
         Adjustment view coming soon...
       </div>
     ),
+    rankings: <RankingsView />,
     settings: <SettingsView />,
   };
 

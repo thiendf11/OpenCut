@@ -10,6 +10,7 @@ import {
   LucideIcon,
   TypeIcon,
   SettingsIcon,
+  CrownIcon,
 } from "lucide-react";
 import { create } from "zustand";
 
@@ -23,6 +24,7 @@ export type Tab =
   | "captions"
   | "filters"
   | "adjustment"
+  | "rankings"
   | "settings";
 
 export const tabs: { [key in Tab]: { icon: LucideIcon; label: string } } = {
@@ -61,6 +63,10 @@ export const tabs: { [key in Tab]: { icon: LucideIcon; label: string } } = {
   adjustment: {
     icon: SlidersHorizontalIcon,
     label: "Adjustment",
+  },
+  rankings: {
+    icon: CrownIcon,
+    label: "Rankings",
   },
   settings: {
     icon: SettingsIcon,
