@@ -32,7 +32,11 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Error fetching TikTok video:", error);
     return NextResponse.json(
-      { error: "Failed to fetch video" },
+      {
+        error:
+          "Failed to fetch video" +
+          (error instanceof Error ? ": " + error.message : ""),
+      },
       { status: 500 }
     );
   }
