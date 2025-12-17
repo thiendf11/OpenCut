@@ -13,7 +13,6 @@ import { renderTimelineFrame } from "@/lib/timeline-renderer";
 import { cn } from "@/lib/utils";
 import { formatTimeCode } from "@/lib/time";
 import { EditableTimecode } from "@/components/ui/editable-timecode";
-import { useFrameCache } from "@/hooks/use-frame-cache";
 import { useSceneStore } from "@/stores/scene-store";
 import {
   DEFAULT_CANVAS_SIZE,
@@ -44,11 +43,8 @@ export function PreviewPanel() {
   const { currentTime, toggle, setCurrentTime } = usePlaybackStore();
   const { isPlaying, volume, muted } = usePlaybackStore();
   const { activeProject } = useProjectStore();
-  const { currentScene } = useSceneStore();
   const previewRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { getCachedFrame, cacheFrame, invalidateCache, preRenderNearbyFrames } =
-    useFrameCache();
   const lastFrameTimeRef = useRef(0);
   const renderSeqRef = useRef(0);
   const offscreenCanvasRef = useRef<OffscreenCanvas | HTMLCanvasElement | null>(
@@ -220,16 +216,6 @@ export function PreviewPanel() {
       document.body.style.userSelect = "";
     };
   }, [dragState, previewDimensions, canvasSize, updateTextElement]);
-
-  // Clear the frame cache when background settings change since they affect rendering
-  useEffect(() => {
-    invalidateCache();
-  }, [
-    mediaFiles,
-    activeProject?.backgroundColor,
-    activeProject?.backgroundType,
-    invalidateCache,
-  ]);
 
   const handleTextMouseDown = (
     e: React.MouseEvent<HTMLDivElement>,
@@ -465,7 +451,7 @@ export function PreviewPanel() {
     };
   }, [isPlaying, volume, muted, mediaFiles]);
 
-  // Canvas: draw current frame with caching
+  // Canvas: draw current frame
   useEffect(() => {
     const draw = async () => {
       const canvas = canvasRef.current;
@@ -491,94 +477,7 @@ export function PreviewPanel() {
         lastFrameTimeRef.current = currentTime;
       }
 
-      const cachedFrame = getCachedFrame(
-        currentTime,
-        tracks,
-        mediaFiles,
-        activeProject,
-        currentScene?.id
-      );
-      if (cachedFrame) {
-        mainCtx.putImageData(cachedFrame, 0, 0);
-
-        // Pre-render nearby frames in background
-        if (!isPlaying) {
-          // Only during scrubbing to avoid interfering with playback
-          preRenderNearbyFrames(
-            currentTime,
-            tracks,
-            mediaFiles,
-            activeProject,
-            async (time: number) => {
-              const tempCanvas = document.createElement("canvas");
-              tempCanvas.width = displayWidth;
-              tempCanvas.height = displayHeight;
-              const tempCtx = tempCanvas.getContext("2d");
-              if (!tempCtx)
-                throw new Error("Failed to create temp canvas context");
-
-              await renderTimelineFrame({
-                ctx: tempCtx,
-                time,
-                canvasWidth: displayWidth,
-                canvasHeight: displayHeight,
-                tracks,
-                mediaFiles,
-                backgroundType: activeProject?.backgroundType,
-                blurIntensity: activeProject?.blurIntensity,
-                backgroundColor:
-                  activeProject?.backgroundType === "blur"
-                    ? undefined
-                    : activeProject?.backgroundColor || "#000000",
-                projectCanvasSize: canvasSize,
-              });
-
-              return tempCtx.getImageData(0, 0, displayWidth, displayHeight);
-            },
-            currentScene?.id,
-            3
-          );
-        } else {
-          // Small lookahead while playing
-          preRenderNearbyFrames(
-            currentTime,
-            tracks,
-            mediaFiles,
-            activeProject,
-            async (time: number) => {
-              const tempCanvas = document.createElement("canvas");
-              tempCanvas.width = displayWidth;
-              tempCanvas.height = displayHeight;
-              const tempCtx = tempCanvas.getContext("2d");
-              if (!tempCtx)
-                throw new Error("Failed to create temp canvas context");
-
-              await renderTimelineFrame({
-                ctx: tempCtx,
-                time,
-                canvasWidth: displayWidth,
-                canvasHeight: displayHeight,
-                tracks,
-                mediaFiles,
-                backgroundType: activeProject?.backgroundType,
-                blurIntensity: activeProject?.blurIntensity,
-                backgroundColor:
-                  activeProject?.backgroundType === "blur"
-                    ? undefined
-                    : activeProject?.backgroundColor || "#000000",
-                projectCanvasSize: canvasSize,
-              });
-
-              return tempCtx.getImageData(0, 0, displayWidth, displayHeight);
-            },
-            currentScene?.id,
-            1
-          );
-        }
-        return;
-      }
-
-      // Cache miss - render from scratch
+      // Render from scratch
       if (!offscreenCanvasRef.current) {
         const hasOffscreen =
           typeof (globalThis as unknown as { OffscreenCanvas?: unknown })
@@ -643,21 +542,6 @@ export function PreviewPanel() {
         projectCanvasSize: canvasSize,
       });
 
-      const imageData = (offCtx as CanvasRenderingContext2D).getImageData(
-        0,
-        0,
-        displayWidth,
-        displayHeight
-      );
-      cacheFrame(
-        currentTime,
-        imageData,
-        tracks,
-        mediaFiles,
-        activeProject,
-        currentScene?.id
-      );
-
       // Blit offscreen to visible canvas
       mainCtx.clearRect(0, 0, displayWidth, displayHeight);
       if ((offscreenCanvas as HTMLCanvasElement).getContext) {
@@ -681,10 +565,9 @@ export function PreviewPanel() {
     canvasSize.height,
     activeProject?.backgroundType,
     activeProject?.backgroundColor,
-    getCachedFrame,
-    cacheFrame,
-    preRenderNearbyFrames,
     isPlaying,
+    tracks,
+    mediaFiles,
   ]);
 
   // Get media elements for blur background (video/image only)
