@@ -44,6 +44,7 @@ interface RankingItem {
   videoUrl: string;
   isLoadingVideo: boolean;
   duration: number; // in seconds
+  maxDuration?: number; // max duration based on video length
 }
 
 export function RankingsView() {
@@ -576,13 +577,27 @@ export function RankingsView() {
             return newMap;
           });
 
-          // Set video duration to match ranking duration
+          // Get video duration from media file
+          const videoDuration = addedMediaFile.duration || 30;
+          console.log(`Video duration: ${videoDuration}s`);
+
+          // Set max duration for this ranking item
+          handleUpdateRanking(id, {
+            maxDuration: videoDuration,
+            // If current duration exceeds video duration, cap it
+            duration: Math.min(ranking.duration, videoDuration),
+          });
+
+          // Set video duration to match ranking duration (capped at video length)
+          const finalDuration = Math.min(ranking.duration, videoDuration);
           timelineStore.updateElementDuration(
             videoTrackId,
             videoId,
-            ranking.duration
+            finalDuration
           );
-          console.log(`Set video duration to ${ranking.duration}s`);
+          console.log(
+            `Set video duration to ${finalDuration}s (capped at video length)`
+          );
         }
       }, 100);
 
@@ -956,11 +971,12 @@ export function RankingsView() {
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">
                     Duration: {ranking.duration}s
+                    {ranking.maxDuration && ` (max: ${ranking.maxDuration}s)`}
                   </label>
                   <input
                     type="range"
                     min="1"
-                    max="30"
+                    max={ranking.maxDuration || 30}
                     step="0.5"
                     value={ranking.duration}
                     onChange={(e) =>
