@@ -104,6 +104,7 @@ export function RankingsView() {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const { updateTextElement, tracks } = useTimelineStore();
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   const handleAddRanking = () => {
     const rankingNumber = rankings.length + 1;
@@ -436,118 +437,26 @@ export function RankingsView() {
           return;
         }
 
-        // Fetch video as blob and create File
-        console.log("Downloading video from:", videoUrl);
+        // Download video as blob first to avoid CORS issues
+        console.log("Downloading video...");
         const videoResponse = await fetch(videoUrl);
         const videoBlob = await videoResponse.blob();
-        const videoFile = new File([videoBlob], `ranking-${index + 1}.mp4`, {
-          type: "video/mp4",
-        });
 
-        console.log("Processing video file...", videoFile.size, "bytes");
-        // Process video file using the same pipeline as normal uploads
-        // This will extract metadata, generate thumbnails, etc.
-        const processedItems = await processMediaFiles(
-          [videoFile],
-          (progress) => {
-            console.log(`Video processing progress: ${progress}%`);
-          }
-        );
+        // Create object URL from blob
+        const blobUrl = URL.createObjectURL(videoBlob);
 
-        if (processedItems.length === 0) {
-          console.error("Failed to process video file");
-          handleUpdateRanking(id, { isLoadingVideo: false });
-          return;
-        }
+        // Download file from blob URL
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = `ranking-${index + 1}-${ranking.title || "video"}.mp4`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
 
-        const processedMedia = processedItems[0];
+        // Clean up blob URL after a delay
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
 
-        // Add to media store
-        const { useMediaStore } = await import("@/stores/media-store");
-        await useMediaStore
-          .getState()
-          .addMediaFile(activeProject.id, processedMedia);
-
-        // Find the newly added media file
-        // Get fresh state after adding
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        const freshState = useMediaStore.getState();
-        const addedMediaFile = freshState.mediaFiles.find(
-          (media) => media.file === videoFile && media.type === "video"
-        );
-
-        if (!addedMediaFile) {
-          console.error("Failed to find added media file");
-          console.log(
-            "Available media files:",
-            freshState.mediaFiles.map((m) => ({
-              id: m.id,
-              name: m.name,
-              type: m.type,
-            }))
-          );
-          handleUpdateRanking(id, { isLoadingVideo: false });
-          return;
-        }
-
-        console.log("Found added media file:", addedMediaFile.id);
-
-        // Add video to timeline
-        useTimelineStore.getState().addElementAtTime(addedMediaFile, startTime);
-
-        console.log(`Added video to timeline at ${startTime}s`);
-
-        // Find and save video element ID in the map, then set duration
-        setTimeout(() => {
-          const timelineStore = useTimelineStore.getState();
-          const allTracks = timelineStore.tracks;
-          let videoId: string | null = null;
-          let videoTrackId: string | null = null;
-
-          // Find the video element by mediaId
-          for (const track of allTracks) {
-            for (const element of track.elements) {
-              if (
-                element.type === "media" &&
-                element.mediaId === addedMediaFile.id
-              ) {
-                videoId = element.id;
-                videoTrackId = track.id;
-                console.log(
-                  `Found video element: ${videoId} in track ${track.id}`
-                );
-                break;
-              }
-            }
-            if (videoId) break;
-          }
-
-          // Update the map with video info and set video duration
-          if (videoId && videoTrackId) {
-            setTimelineElementMap((prev) => {
-              const newMap = new Map(prev);
-              const existing = newMap.get(id);
-              if (existing) {
-                newMap.set(id, {
-                  ...existing,
-                  videoId,
-                  videoTrackId,
-                });
-                console.log(`Updated map with video info for ${id}`);
-              }
-              return newMap;
-            });
-
-            // Set video duration to match ranking duration
-            timelineStore.updateElementDuration(
-              videoTrackId,
-              videoId,
-              ranking.duration
-            );
-            console.log(`Set video duration to ${ranking.duration}s`);
-          }
-        }, 100);
-
+        console.log("Video downloaded successfully!");
         handleUpdateRanking(id, { isLoadingVideo: false });
       } else {
         // Other platforms not implemented yet
@@ -558,6 +467,151 @@ export function RankingsView() {
       console.error("Error fetching video:", error);
       handleUpdateRanking(id, { isLoadingVideo: false });
     }
+  };
+
+  const handleDropVideo = async (id: string, files: FileList) => {
+    if (!files || files.length === 0) return;
+    if (!activeProject) {
+      console.error("No active project");
+      return;
+    }
+
+    const file = files[0];
+    if (!file.type.startsWith("video/")) {
+      console.error("Only video files are allowed");
+      return;
+    }
+
+    handleUpdateRanking(id, { isLoadingVideo: true });
+
+    try {
+      const ranking = rankings.find((r) => r.id === id);
+      if (!ranking) return;
+
+      // Calculate start time for this video based on ranking position
+      const index = rankings.findIndex((r) => r.id === id);
+      const startTime = rankings
+        .slice(0, index)
+        .reduce((acc, r) => acc + r.duration, 0);
+
+      console.log("Processing dropped video...", file.name);
+
+      // Process video file
+      const processedItems = await processMediaFiles([file], (progress) => {
+        console.log(`Processing: ${progress}%`);
+      });
+
+      if (processedItems.length === 0) {
+        console.error("Failed to process video");
+        handleUpdateRanking(id, { isLoadingVideo: false });
+        return;
+      }
+
+      const processedMedia = processedItems[0];
+
+      // Add to media store
+      const { useMediaStore } = await import("@/stores/media-store");
+      await useMediaStore
+        .getState()
+        .addMediaFile(activeProject.id, processedMedia);
+
+      // Find the newly added media file
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      const freshState = useMediaStore.getState();
+      const addedMediaFile = freshState.mediaFiles.find(
+        (media) => media.file === file && media.type === "video"
+      );
+
+      if (!addedMediaFile) {
+        console.error("Failed to find added media file");
+        handleUpdateRanking(id, { isLoadingVideo: false });
+        return;
+      }
+
+      console.log("Added to media library:", addedMediaFile.id);
+
+      // Add video to timeline at correct position
+      useTimelineStore.getState().addElementAtTime(addedMediaFile, startTime);
+
+      console.log(`Added to timeline at ${startTime}s`);
+
+      // Find and link video element to ranking item
+      setTimeout(() => {
+        const timelineStore = useTimelineStore.getState();
+        const allTracks = timelineStore.tracks;
+        let videoId: string | null = null;
+        let videoTrackId: string | null = null;
+
+        // Find the video element by mediaId
+        for (const track of allTracks) {
+          for (const element of track.elements) {
+            if (
+              element.type === "media" &&
+              element.mediaId === addedMediaFile.id
+            ) {
+              videoId = element.id;
+              videoTrackId = track.id;
+              console.log(
+                `Found video element: ${videoId} in track ${track.id}`
+              );
+              break;
+            }
+          }
+          if (videoId) break;
+        }
+
+        // Link video to ranking item and set duration
+        if (videoId && videoTrackId) {
+          setTimelineElementMap((prev) => {
+            const newMap = new Map(prev);
+            const existing = newMap.get(id);
+            if (existing) {
+              newMap.set(id, {
+                ...existing,
+                videoId,
+                videoTrackId,
+              });
+              console.log(`Linked video to ranking item ${id}`);
+            }
+            return newMap;
+          });
+
+          // Set video duration to match ranking duration
+          timelineStore.updateElementDuration(
+            videoTrackId,
+            videoId,
+            ranking.duration
+          );
+          console.log(`Set video duration to ${ranking.duration}s`);
+        }
+      }, 100);
+
+      handleUpdateRanking(id, { isLoadingVideo: false });
+    } catch (error) {
+      console.error("Error processing dropped video:", error);
+      handleUpdateRanking(id, { isLoadingVideo: false });
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverId(id);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverId(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverId(null);
+
+    const files = e.dataTransfer.files;
+    handleDropVideo(id, files);
   };
 
   const handleAddTitleToTimeline = (
@@ -645,7 +699,14 @@ export function RankingsView() {
             {rankings.map((ranking, index) => (
               <div
                 key={ranking.id}
-                className="bg-panel-accent rounded-lg p-3 space-y-2 border border-border"
+                className={`bg-panel-accent rounded-lg p-3 space-y-2 border ${
+                  dragOverId === ranking.id
+                    ? "border-primary border-2 bg-primary/10"
+                    : "border-border"
+                }`}
+                onDragOver={(e) => handleDragOver(e, ranking.id)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, ranking.id)}
               >
                 {/* Header: Number with color buttons */}
                 <div className="flex items-center gap-2">

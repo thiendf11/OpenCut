@@ -13,7 +13,6 @@ export async function processMediaFiles(
   files: FileList | File[],
   onProgress?: (progress: number) => void
 ): Promise<ProcessedMediaItem[]> {
-  debugger;
   const fileArray = Array.from(files);
   const processedItems: ProcessedMediaItem[] = [];
 
@@ -48,10 +47,10 @@ export async function processMediaFiles(
           height = videoInfo.height;
           fps = videoInfo.fps;
 
-          // thumbnailUrl = await generateThumbnail({
-          //   videoFile: file,
-          //   timeInSeconds: 1,
-          // });
+          thumbnailUrl = await generateThumbnail({
+            videoFile: file,
+            timeInSeconds: 1,
+          });
         } catch (error) {
           console.warn("Video processing failed", error);
         }

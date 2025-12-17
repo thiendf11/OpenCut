@@ -9,7 +9,6 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { videoId } = requestSchema.parse(body);
-
     // Fetch from TikTok API with localhost origin
     const response = await fetch(
       `https://api.twitterpicker.com/tiktok/mediav2?id=${videoId}`,
