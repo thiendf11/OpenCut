@@ -1,10 +1,7 @@
 import { TextElement } from "@/types/timeline";
 import { TIMELINE_CONSTANTS } from "./timeline-constants";
 
-export const DEFAULT_TEXT_ELEMENT: Omit<
-  TextElement,
-  "id"
-> = {
+export const DEFAULT_TEXT_ELEMENT: Omit<TextElement, "id"> = {
   type: "text",
   name: "Text",
   content: "Default Text",
@@ -20,6 +17,7 @@ export const DEFAULT_TEXT_ELEMENT: Omit<
   y: 0,
   rotation: 0,
   opacity: 1,
+  textShadow: undefined,
   duration: TIMELINE_CONSTANTS.DEFAULT_TEXT_DURATION,
   startTime: 0,
   trimStart: 0,

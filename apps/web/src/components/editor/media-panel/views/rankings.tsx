@@ -35,6 +35,7 @@ type Platform = "tiktok" | "youtube" | "instagram" | "twitter";
 
 interface RankingItem {
   id: string;
+  header: string;
   title: string;
   titleColor: string;
   titleBgColor: string;
@@ -88,13 +89,15 @@ export function RankingsView() {
       );
     }
   }, [defaultColors]);
-  // Map ranking ID to timeline element IDs (number, title, and video in separate tracks)
+  // Map ranking ID to timeline element IDs (number, title, header, and video in separate tracks)
   const [timelineElementMap, setTimelineElementMap] = useState<
     Map<
       string,
       {
         trackId: string;
         numberId: string;
+        headerId: string;
+        headerTrackId: string;
         titleId: string;
         titleTrackId: string;
         videoId?: string;
@@ -106,6 +109,67 @@ export function RankingsView() {
   const containerRef = useRef<HTMLDivElement>(null);
   const { updateTextElement, tracks } = useTimelineStore();
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [globalHeader, setGlobalHeader] = useState<string>("");
+  const [globalHeaderElementId, setGlobalHeaderElementId] = useState<{
+    trackId: string;
+    elementId: string;
+  } | null>(null);
+
+  // Create or update global header element on timeline
+  useEffect(() => {
+    const timelineStore = useTimelineStore.getState();
+
+    // If we already have a global header element, just update it
+    if (globalHeaderElementId) {
+      timelineStore.updateTextElement(
+        globalHeaderElementId.trackId,
+        globalHeaderElementId.elementId,
+        {
+          content: globalHeader || " ",
+        }
+      );
+      return;
+    }
+
+    // Create new global header element if text is not empty
+    if (globalHeader.trim()) {
+      timelineStore.addElementAtTime(
+        {
+          ...DEFAULT_TEXT_ELEMENT,
+          id: "global-header",
+          name: "Rankings Header",
+          content: globalHeader,
+          color: "#FFFFFF",
+          backgroundColor: "transparent",
+          fontSize: 48,
+          textAlign: "center",
+          fontWeight: "bold",
+          x: 0,
+          y: -830,
+          textShadow: "6px 6px 4px rgba(0, 0, 0, 1)",
+          duration: 120,
+        },
+        0
+      );
+
+      // Find the created element
+      setTimeout(() => {
+        const allTracks = useTimelineStore.getState().tracks;
+        for (const track of allTracks) {
+          for (const element of track.elements) {
+            if (element.type === "text" && element.name === "Rankings Header") {
+              setGlobalHeaderElementId({
+                trackId: track.id,
+                elementId: element.id,
+              });
+              console.log("✓ Found global header element:", element.id);
+              break;
+            }
+          }
+        }
+      }, 100);
+    }
+  }, [globalHeader, globalHeaderElementId]);
 
   const handleAddRanking = () => {
     const rankingNumber = rankings.length + 1;
@@ -114,6 +178,7 @@ export function RankingsView() {
 
     const newRanking: RankingItem = {
       id: `ranking-${Date.now()}`,
+      header: "",
       title: "",
       titleColor: "#FFFFFF",
       titleBgColor: "transparent",
@@ -150,6 +215,7 @@ export function RankingsView() {
         fontSize: 48,
         x: -400,
         y: yPosition,
+        textShadow: "4px 4px 4px rgba(0, 0, 0, 1)",
         duration: 120, // Very long duration to appear throughout video
       },
       0 // Always start at time 0
@@ -171,6 +237,7 @@ export function RankingsView() {
         textAlign: "left",
         x: -370,
         y: yPosition,
+        textShadow: "4px 4px 4px rgba(0, 0, 0, 1)",
         duration: 120, // Long duration to appear throughout video
       },
       titleStartTime // Start after previous titles
@@ -189,6 +256,8 @@ export function RankingsView() {
 
       let numberId: string | null = null;
       let numberTrackId: string | null = null;
+      let headerId: string | null = null;
+      let headerTrackId: string | null = null;
       let titleId: string | null = null;
       let titleTrackId: string | null = null;
 
@@ -211,6 +280,14 @@ export function RankingsView() {
                 `  ✓ Found number element: ${numberId} in track ${track.id}`
               );
             }
+            // Match header element by name
+            else if (element.name === `Ranking ${rankingNumber} Header`) {
+              headerId = element.id;
+              headerTrackId = track.id;
+              console.log(
+                `  ✓ Found header element: ${headerId} in track ${track.id}`
+              );
+            }
             // Match title element by name
             else if (element.name === `Ranking ${rankingNumber} Title`) {
               titleId = element.id;
@@ -223,13 +300,22 @@ export function RankingsView() {
         }
       }
 
-      // If both found, save to map
-      if (numberId && titleId && numberTrackId && titleTrackId) {
+      // If all found, save to map
+      if (
+        numberId &&
+        headerId &&
+        titleId &&
+        numberTrackId &&
+        headerTrackId &&
+        titleTrackId
+      ) {
         setTimelineElementMap((prev) => {
           const newMap = new Map(prev);
           newMap.set(newRanking.id, {
             trackId: numberTrackId,
             numberId: numberId,
+            headerId: headerId,
+            headerTrackId: headerTrackId,
             titleId: titleId,
             titleTrackId: titleTrackId,
           });
@@ -288,6 +374,16 @@ export function RankingsView() {
           color: updatedRanking.numberColor,
           backgroundColor: updatedRanking.numberBgColor,
           fontWeight: "bold",
+        }
+      );
+
+      // Always update header element (in its own track)
+      timelineStore.updateTextElement(
+        elementInfo.headerTrackId,
+        elementInfo.headerId,
+        {
+          content: updatedRanking.header || " ",
+          textAlign: "center",
         }
       );
 
@@ -650,6 +746,19 @@ export function RankingsView() {
   return (
     <BaseView>
       <div className="space-y-4" ref={containerRef}>
+        {/* Global header text */}
+        <div className="space-y-2">
+          <label className="text-xs font-medium text-muted-foreground">
+            Header Text (appears above all videos)
+          </label>
+          <Input
+            placeholder="Enter header text for all rankings..."
+            value={globalHeader}
+            onChange={(e) => setGlobalHeader(e.target.value)}
+            className="h-9 text-sm bg-background font-medium"
+          />
+        </div>
+
         {/* Default colors for top 3 */}
         <div className="space-y-2">
           <label className="text-xs font-medium text-muted-foreground">
@@ -854,6 +963,23 @@ export function RankingsView() {
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
+                </div>
+
+                {/* Header input */}
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Header (above video)
+                  </label>
+                  <Input
+                    placeholder="Enter header text..."
+                    value={ranking.header}
+                    onChange={(e) =>
+                      handleUpdateRanking(ranking.id, {
+                        header: e.target.value,
+                      })
+                    }
+                    className="h-8 text-xs bg-background"
+                  />
                 </div>
 
                 {/* Title input with color buttons */}

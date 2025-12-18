@@ -272,6 +272,19 @@ export async function renderTimelineFrame({
         );
         ctx.restore();
       }
+      // Apply text shadow if present
+      if (text.textShadow) {
+        // Parse CSS text-shadow: "2px 2px 4px rgba(0, 0, 0, 0.8)"
+        const parts = text.textShadow.match(
+          /([-\d.]+)px\s+([-\d.]+)px\s+([-\d.]+)px\s+(.+)/
+        );
+        if (parts) {
+          ctx.shadowOffsetX = Number.parseFloat(parts[1]) * scaleX;
+          ctx.shadowOffsetY = Number.parseFloat(parts[2]) * scaleY;
+          ctx.shadowBlur = Number.parseFloat(parts[3]) * scaleX;
+          ctx.shadowColor = parts[4];
+        }
+      }
       ctx.fillText(text.content, 0, 0);
       ctx.restore();
     }

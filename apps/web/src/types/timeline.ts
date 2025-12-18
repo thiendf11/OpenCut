@@ -37,6 +37,7 @@ export interface TextElement extends BaseTimelineElement {
   y: number; // Position relative to canvas center
   rotation: number; // in degrees
   opacity: number; // 0-1
+  textShadow?: string; // CSS text-shadow format: "offsetX offsetY blur color"
 }
 
 // Typed timeline elements
