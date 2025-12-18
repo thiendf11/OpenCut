@@ -35,7 +35,6 @@ type Platform = "tiktok" | "youtube" | "instagram" | "twitter";
 
 interface RankingItem {
   id: string;
-  header: string;
   title: string;
   titleColor: string;
   titleBgColor: string;
@@ -96,8 +95,6 @@ export function RankingsView() {
       {
         trackId: string;
         numberId: string;
-        headerId: string;
-        headerTrackId: string;
         titleId: string;
         titleTrackId: string;
         videoId?: string;
@@ -178,7 +175,6 @@ export function RankingsView() {
 
     const newRanking: RankingItem = {
       id: `ranking-${Date.now()}`,
-      header: "",
       title: "",
       titleColor: "#FFFFFF",
       titleBgColor: "transparent",
@@ -256,8 +252,6 @@ export function RankingsView() {
 
       let numberId: string | null = null;
       let numberTrackId: string | null = null;
-      let headerId: string | null = null;
-      let headerTrackId: string | null = null;
       let titleId: string | null = null;
       let titleTrackId: string | null = null;
 
@@ -280,14 +274,7 @@ export function RankingsView() {
                 `  ✓ Found number element: ${numberId} in track ${track.id}`
               );
             }
-            // Match header element by name
-            else if (element.name === `Ranking ${rankingNumber} Header`) {
-              headerId = element.id;
-              headerTrackId = track.id;
-              console.log(
-                `  ✓ Found header element: ${headerId} in track ${track.id}`
-              );
-            }
+
             // Match title element by name
             else if (element.name === `Ranking ${rankingNumber} Title`) {
               titleId = element.id;
@@ -301,21 +288,12 @@ export function RankingsView() {
       }
 
       // If all found, save to map
-      if (
-        numberId &&
-        headerId &&
-        titleId &&
-        numberTrackId &&
-        headerTrackId &&
-        titleTrackId
-      ) {
+      if (numberId && titleId && numberTrackId && titleTrackId) {
         setTimelineElementMap((prev) => {
           const newMap = new Map(prev);
           newMap.set(newRanking.id, {
             trackId: numberTrackId,
             numberId: numberId,
-            headerId: headerId,
-            headerTrackId: headerTrackId,
             titleId: titleId,
             titleTrackId: titleTrackId,
           });
@@ -374,16 +352,6 @@ export function RankingsView() {
           color: updatedRanking.numberColor,
           backgroundColor: updatedRanking.numberBgColor,
           fontWeight: "bold",
-        }
-      );
-
-      // Always update header element (in its own track)
-      timelineStore.updateTextElement(
-        elementInfo.headerTrackId,
-        elementInfo.headerId,
-        {
-          content: updatedRanking.header || " ",
-          textAlign: "center",
         }
       );
 
@@ -963,23 +931,6 @@ export function RankingsView() {
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
-                </div>
-
-                {/* Header input */}
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">
-                    Header (above video)
-                  </label>
-                  <Input
-                    placeholder="Enter header text..."
-                    value={ranking.header}
-                    onChange={(e) =>
-                      handleUpdateRanking(ranking.id, {
-                        header: e.target.value,
-                      })
-                    }
-                    className="h-8 text-xs bg-background"
-                  />
                 </div>
 
                 {/* Title input with color buttons */}
