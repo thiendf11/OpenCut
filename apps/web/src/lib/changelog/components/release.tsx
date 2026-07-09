@@ -62,7 +62,7 @@ export function ReleaseTitle({
 }: {
 	as: "h1" | "h2";
 	href?: string;
-	children: ReactNode;
+	children: any;
 }) {
 	return (
 		<As className={cn("font-bold tracking-tight", titleSizes[As])}>

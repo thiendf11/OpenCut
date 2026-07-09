@@ -10,7 +10,10 @@ import { useKeybindingsStore } from "@/stores/keybindings-store";
 import { useTimelineStore } from "@/stores/timeline-store";
 import { useEditorActions } from "@/hooks/actions/use-editor-actions";
 import { loadFontAtlas } from "@/lib/fonts/google-fonts";
-import { initializeGpuRenderer, isGpuAvailable } from "@/services/renderer/gpu-renderer";
+import {
+	initializeGpuRenderer,
+	isGpuAvailable,
+} from "@/services/renderer/gpu-renderer";
 
 interface EditorProviderProps {
 	projectId: string;

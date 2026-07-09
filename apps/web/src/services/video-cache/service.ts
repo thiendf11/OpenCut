@@ -36,10 +36,11 @@ export class VideoCache {
 		if (!sinkData) return null;
 
 		const previous = this.frameChain.get(mediaId) ?? Promise.resolve();
-		const current = previous.then(() =>
-			this.resolveFrame({ sinkData, time }),
+		const current = previous.then(() => this.resolveFrame({ sinkData, time }));
+		this.frameChain.set(
+			mediaId,
+			current.catch(() => {}),
 		);
-		this.frameChain.set(mediaId, current.catch(() => {}));
 		return current;
 	}
 

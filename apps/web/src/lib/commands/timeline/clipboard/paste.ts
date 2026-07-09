@@ -3,7 +3,11 @@ import { EditorCore } from "@/core";
 import type { SceneTracks, TimelineElement } from "@/lib/timeline";
 import type { ElementClipboardItem } from "@/lib/clipboard";
 import { generateUUID } from "@/utils/id";
-import { applyPlacement, resolveTrackPlacement, enforceMainTrackStart } from "@/lib/timeline/placement";
+import {
+	applyPlacement,
+	resolveTrackPlacement,
+	enforceMainTrackStart,
+} from "@/lib/timeline/placement";
 import { cloneAnimations } from "@/lib/animation";
 
 export class PasteCommand extends Command {
@@ -183,4 +187,3 @@ function buildPastedElements({
 
 	return elementsToAdd;
 }
-

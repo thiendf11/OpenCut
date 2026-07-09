@@ -231,18 +231,14 @@ export function TimelineElement({
 		elementId: element.id,
 		fallback: element,
 	});
-	const {
-		currentDuration,
-		currentStartTime,
-		handleResizeStart,
-		isResizing,
-	} = useTimelineElementResize({
-		element,
-		track,
-		zoomLevel,
-		onSnapPointChange,
-		onResizeStateChange,
-	});
+	const { currentDuration, currentStartTime, handleResizeStart, isResizing } =
+		useTimelineElementResize({
+			element,
+			track,
+			zoomLevel,
+			onSnapPointChange,
+			onResizeStateChange,
+		});
 
 	let mediaAsset: MediaAsset | null = null;
 
@@ -329,9 +325,7 @@ export function TimelineElement({
 	);
 	const expandedRows = useMemo(
 		() =>
-			isExpanded
-				? getExpandedRows({ animations: element.animations })
-				: [],
+			isExpanded ? getExpandedRows({ animations: element.animations }) : [],
 		[isExpanded, element.animations],
 	);
 
@@ -811,8 +805,7 @@ function ExpandedKeyframeLanes({
 			[...keyframes]
 				.sort(
 					(a, b) =>
-						a.time - b.time ||
-						a.propertyPath.localeCompare(b.propertyPath),
+						a.time - b.time || a.propertyPath.localeCompare(b.propertyPath),
 				)
 				.map((kf) => ({
 					trackId,
@@ -837,9 +830,7 @@ function ExpandedKeyframeLanes({
 				return (
 					<div
 						key={row.propertyPath}
-						className={cn(
-							"relative flex items-center bg-muted/50",
-						)}
+						className={cn("relative flex items-center bg-muted/50")}
 						style={{ height: `${KEYFRAME_LANE_HEIGHT_PX}px` }}
 					>
 						{laneKeyframes.map((kf) => {
@@ -849,8 +840,9 @@ function ExpandedKeyframeLanes({
 								propertyPath: row.propertyPath,
 								keyframeId: kf.id,
 							};
-							const isBeingDragged =
-								keyframeDragState.draggingKeyframeIds.has(kf.id);
+							const isBeingDragged = keyframeDragState.draggingKeyframeIds.has(
+								kf.id,
+							);
 							const kfLeft = timelineTimeToSnappedPixels({
 								time: displayedStartTime + kf.time,
 								zoomLevel,
@@ -898,9 +890,7 @@ function ExpandedKeyframeLanes({
 										icon={KeyframeIcon}
 										className={cn(
 											"size-3.5 text-black mr-1",
-											isSelected
-												? "fill-primary"
-												: "fill-white",
+											isSelected ? "fill-primary" : "fill-white",
 										)}
 										strokeWidth={1.5}
 									/>

@@ -4,14 +4,9 @@ import { useCallback, useEffect, useRef } from "react";
 import { usePreviewViewport } from "@/components/editor/panels/preview/preview-viewport";
 import { useEditor } from "@/hooks/use-editor";
 import type { TextElement } from "@/lib/timeline";
-import {
-	FONT_SIZE_SCALE_REFERENCE,
-} from "@/lib/text/typography";
+import { FONT_SIZE_SCALE_REFERENCE } from "@/lib/text/typography";
 import { DEFAULTS } from "@/lib/timeline/defaults";
-import {
-	getElementLocalTime,
-	resolveTransformAtTime,
-} from "@/lib/animation";
+import { getElementLocalTime, resolveTransformAtTime } from "@/lib/animation";
 
 export function TextEditOverlay({
 	trackId,

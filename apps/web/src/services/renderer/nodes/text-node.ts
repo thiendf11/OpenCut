@@ -2,10 +2,7 @@ import { BaseNode } from "./base-node";
 import type { TextElement } from "@/lib/timeline";
 import type { EffectPass } from "@/lib/effects/types";
 import type { Transform } from "@/lib/rendering";
-import {
-	CORNER_RADIUS_MAX,
-	CORNER_RADIUS_MIN,
-} from "@/lib/text/background";
+import { CORNER_RADIUS_MAX, CORNER_RADIUS_MIN } from "@/lib/text/background";
 import {
 	drawTextDecoration,
 	getTextBackgroundRect,

@@ -116,11 +116,9 @@ function getDragDropTarget({
 	const scrollContainer = tracksScrollRef.current;
 	if (!containerRect || !scrollContainer) return null;
 
-	const sourceTrack = [
-		...tracks.overlay,
-		tracks.main,
-		...tracks.audio,
-	].find(({ id }) => id === trackId);
+	const sourceTrack = [...tracks.overlay, tracks.main, ...tracks.audio].find(
+		({ id }) => id === trackId,
+	);
 	const movingElement = sourceTrack?.elements.find(
 		({ id }) => id === elementId,
 	);
@@ -153,7 +151,11 @@ function getDragDropTarget({
 interface StartDragParams
 	extends Omit<
 		ElementDragState,
-		"isDragging" | "currentTime" | "currentMouseY" | "dragElementIds" | "dragTimeOffsets"
+		| "isDragging"
+		| "currentTime"
+		| "currentMouseY"
+		| "dragElementIds"
+		| "dragTimeOffsets"
 	> {
 	initialCurrentTime: number;
 	initialCurrentMouseY: number;
@@ -314,17 +316,18 @@ export function useElementInteraction({
 						zoomLevel,
 						scrollLeft,
 					});
-				const adjustedTime = Math.max(
-					0,
-					mouseTime - pendingDragRef.current.clickOffsetTime,
-				);
-				const snappedTime = roundToFrame({
-					time: adjustedTime,
-					rate: activeProject.settings.fps,
-				}) ?? adjustedTime;
-				startDrag({
-					...pendingDragRef.current,
-					initialCurrentTime: snappedTime,
+					const adjustedTime = Math.max(
+						0,
+						mouseTime - pendingDragRef.current.clickOffsetTime,
+					);
+					const snappedTime =
+						roundToFrame({
+							time: adjustedTime,
+							rate: activeProject.settings.fps,
+						}) ?? adjustedTime;
+					startDrag({
+						...pendingDragRef.current,
+						initialCurrentTime: snappedTime,
 						initialCurrentMouseY: clientY,
 					});
 					startedDragThisEvent = true;
@@ -364,7 +367,8 @@ export function useElementInteraction({
 			});
 			const adjustedTime = Math.max(0, mouseTime - dragState.clickOffsetTime);
 			const fps = activeProject.settings.fps;
-			const frameSnappedTime = roundToFrame({ time: adjustedTime, rate: fps }) ?? adjustedTime;
+			const frameSnappedTime =
+				roundToFrame({ time: adjustedTime, rate: fps }) ?? adjustedTime;
 
 			const sourceTrack = tracks.find(({ id }) => id === dragState.trackId);
 			const movingElement = sourceTrack?.elements.find(
@@ -476,7 +480,8 @@ export function useElementInteraction({
 				return;
 			}
 			const movingElement =
-				sourceTrack.elements.find(({ id }) => id === dragState.elementId) ?? null;
+				sourceTrack.elements.find(({ id }) => id === dragState.elementId) ??
+				null;
 			if (
 				movingElement &&
 				!dropTarget.isNewTrack &&

@@ -347,76 +347,76 @@ export function TransformTab({
 							</>
 						)}
 					</div>
-				<div className="flex items-end gap-2">
-					<SectionField
-						label="X"
-						className="min-w-0 flex-1"
-						beforeLabel={
-							<KeyframeToggle
-								isActive={positionX.isKeyframedAtTime}
-								isDisabled={!isPlayheadWithinElementRange}
-								title="Toggle X position keyframe"
-								onToggle={positionX.toggleKeyframe}
-							/>
-						}
-					>
-					<NumberField
-						icon="X"
-						value={positionX.displayValue}
-							onFocus={positionX.onFocus}
-							onChange={positionX.onChange}
-							onBlur={positionX.onBlur}
-							onScrub={positionX.scrubTo}
-							onScrubEnd={positionX.commitScrub}
-							onReset={() =>
-								positionX.commitValue({
-									value: DEFAULTS.element.transform.position.x,
-								})
+					<div className="flex items-end gap-2">
+						<SectionField
+							label="X"
+							className="min-w-0 flex-1"
+							beforeLabel={
+								<KeyframeToggle
+									isActive={positionX.isKeyframedAtTime}
+									isDisabled={!isPlayheadWithinElementRange}
+									title="Toggle X position keyframe"
+									onToggle={positionX.toggleKeyframe}
+								/>
 							}
-							isDefault={isPropertyAtDefault({
-								hasAnimatedKeyframes: positionX.hasAnimatedKeyframes,
-								isPlayheadWithinElementRange,
-								resolvedValue: resolvedTransform.position.x,
-								staticValue: element.transform.position.x,
-								defaultValue: DEFAULTS.element.transform.position.x,
-							})}
-						/>
-					</SectionField>
-					<SectionField
-						label="Y"
-						className="min-w-0 flex-1"
-						beforeLabel={
-							<KeyframeToggle
-								isActive={positionY.isKeyframedAtTime}
-								isDisabled={!isPlayheadWithinElementRange}
-								title="Toggle Y position keyframe"
-								onToggle={positionY.toggleKeyframe}
+						>
+							<NumberField
+								icon="X"
+								value={positionX.displayValue}
+								onFocus={positionX.onFocus}
+								onChange={positionX.onChange}
+								onBlur={positionX.onBlur}
+								onScrub={positionX.scrubTo}
+								onScrubEnd={positionX.commitScrub}
+								onReset={() =>
+									positionX.commitValue({
+										value: DEFAULTS.element.transform.position.x,
+									})
+								}
+								isDefault={isPropertyAtDefault({
+									hasAnimatedKeyframes: positionX.hasAnimatedKeyframes,
+									isPlayheadWithinElementRange,
+									resolvedValue: resolvedTransform.position.x,
+									staticValue: element.transform.position.x,
+									defaultValue: DEFAULTS.element.transform.position.x,
+								})}
 							/>
-						}
-					>
-					<NumberField
-						icon="Y"
-						value={positionY.displayValue}
-							onFocus={positionY.onFocus}
-							onChange={positionY.onChange}
-							onBlur={positionY.onBlur}
-							onScrub={positionY.scrubTo}
-							onScrubEnd={positionY.commitScrub}
-							onReset={() =>
-								positionY.commitValue({
-									value: DEFAULTS.element.transform.position.y,
-								})
+						</SectionField>
+						<SectionField
+							label="Y"
+							className="min-w-0 flex-1"
+							beforeLabel={
+								<KeyframeToggle
+									isActive={positionY.isKeyframedAtTime}
+									isDisabled={!isPlayheadWithinElementRange}
+									title="Toggle Y position keyframe"
+									onToggle={positionY.toggleKeyframe}
+								/>
 							}
-							isDefault={isPropertyAtDefault({
-								hasAnimatedKeyframes: positionY.hasAnimatedKeyframes,
-								isPlayheadWithinElementRange,
-								resolvedValue: resolvedTransform.position.y,
-								staticValue: element.transform.position.y,
-								defaultValue: DEFAULTS.element.transform.position.y,
-							})}
-						/>
-					</SectionField>
-				</div>
+						>
+							<NumberField
+								icon="Y"
+								value={positionY.displayValue}
+								onFocus={positionY.onFocus}
+								onChange={positionY.onChange}
+								onBlur={positionY.onBlur}
+								onScrub={positionY.scrubTo}
+								onScrubEnd={positionY.commitScrub}
+								onReset={() =>
+									positionY.commitValue({
+										value: DEFAULTS.element.transform.position.y,
+									})
+								}
+								isDefault={isPropertyAtDefault({
+									hasAnimatedKeyframes: positionY.hasAnimatedKeyframes,
+									isPlayheadWithinElementRange,
+									resolvedValue: resolvedTransform.position.y,
+									staticValue: element.transform.position.y,
+									defaultValue: DEFAULTS.element.transform.position.y,
+								})}
+							/>
+						</SectionField>
+					</div>
 
 					<SectionField
 						label="Rotation"

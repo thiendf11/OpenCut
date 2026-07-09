@@ -116,14 +116,17 @@ export function computeDropTarget({
 			: isExternalDrop
 				? playheadTime
 				: Math.round(
-				Math.max(0, mouseX / (pixelsPerSecond * zoomLevel)) * TICKS_PER_SECOND,
-			);
+						Math.max(0, mouseX / (pixelsPerSecond * zoomLevel)) *
+							TICKS_PER_SECOND,
+					);
 
 	if (orderedTracks.length === 0) {
 		const placementResult = resolveTrackPlacement({
 			tracks,
 			elementType,
-			timeSpans: [{ startTime: xPosition, duration: elementDuration, excludeElementId }],
+			timeSpans: [
+				{ startTime: xPosition, duration: elementDuration, excludeElementId },
+			],
 			strategy: {
 				type: "preferIndex",
 				trackIndex: 0,
@@ -158,7 +161,9 @@ export function computeDropTarget({
 		const placementResult = resolveTrackPlacement({
 			tracks,
 			elementType,
-			timeSpans: [{ startTime: xPosition, duration: elementDuration, excludeElementId }],
+			timeSpans: [
+				{ startTime: xPosition, duration: elementDuration, excludeElementId },
+			],
 			strategy: {
 				type: "preferIndex",
 				trackIndex: isAboveAllTracks ? 0 : orderedTracks.length - 1,
@@ -208,7 +213,9 @@ export function computeDropTarget({
 	const placementResult = resolveTrackPlacement({
 		tracks,
 		elementType,
-		timeSpans: [{ startTime: xPosition, duration: elementDuration, excludeElementId }],
+		timeSpans: [
+			{ startTime: xPosition, duration: elementDuration, excludeElementId },
+		],
 		strategy: {
 			type: "preferIndex",
 			trackIndex,

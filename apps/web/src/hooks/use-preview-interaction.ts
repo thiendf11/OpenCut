@@ -290,7 +290,8 @@ export function usePreviewInteraction({
 					return;
 				}
 
-				const dragTarget = pendingGesture.selectedHit ?? pendingGesture.topmostHit;
+				const dragTarget =
+					pendingGesture.selectedHit ?? pendingGesture.topmostHit;
 				if (!dragTarget) {
 					pendingGestureRef.current = null;
 					onSnapLinesChange?.([]);
@@ -316,16 +317,16 @@ export function usePreviewInteraction({
 					return;
 				}
 
-			if (pendingGesture.selectedHit === null) {
-				editor.selection.setSelectedElements({
-					elements: [
-						{
-							trackId: dragTarget.trackId,
-							elementId: dragTarget.elementId,
-						},
-					],
-				});
-			}
+				if (pendingGesture.selectedHit === null) {
+					editor.selection.setSelectedElements({
+						elements: [
+							{
+								trackId: dragTarget.trackId,
+								elementId: dragTarget.elementId,
+							},
+						],
+					});
+				}
 
 				dragState = {
 					startX: pendingGesture.startX,
@@ -398,7 +399,13 @@ export function usePreviewInteraction({
 
 			editor.timeline.previewElements({ updates });
 		},
-		[editor, isShiftHeldRef, onSnapLinesChange, releaseCapturedPointer, viewport],
+		[
+			editor,
+			isShiftHeldRef,
+			onSnapLinesChange,
+			releaseCapturedPointer,
+			viewport,
+		],
 	);
 
 	const handlePointerUp = useCallback(

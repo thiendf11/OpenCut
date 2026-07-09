@@ -119,7 +119,9 @@ export function Timeline() {
 	} = useElementSelection();
 	const editor = useEditor();
 	const timeline = editor.timeline;
-	const scene = useEditor((currentEditor) => currentEditor.scenes.getActiveSceneOrNull());
+	const scene = useEditor((currentEditor) =>
+		currentEditor.scenes.getActiveSceneOrNull(),
+	);
 	const tracks = useMemo<TimelineTrack[]>(
 		() =>
 			scene
@@ -366,7 +368,10 @@ export function Timeline() {
 
 	const containerWidth =
 		tracksContainerRef.current?.clientWidth || FALLBACK_CONTAINER_WIDTH;
-	const contentWidth = timelineTimeToPixels({ time: timelineDuration, zoomLevel });
+	const contentWidth = timelineTimeToPixels({
+		time: timelineDuration,
+		zoomLevel,
+	});
 	const paddingPx = getTimelinePaddingPx({
 		containerWidth,
 		zoomLevel,
@@ -513,7 +518,10 @@ export function Timeline() {
 											TRACKS_CONTAINER_HEIGHT.min,
 											Math.min(
 												TRACKS_CONTAINER_HEIGHT.max,
-												getTotalTracksHeight({ tracks, getExtraHeight: getTrackExpansionHeight }),
+												getTotalTracksHeight({
+													tracks,
+													getExtraHeight: getTrackExpansionHeight,
+												}),
 											),
 										) + TIMELINE_CONTENT_TOP_PADDING_PX
 									}px`,
@@ -533,8 +541,8 @@ export function Timeline() {
 								}}
 							>
 								{tracks.length > 0 && (
-		<TimelineTrackRows
-					mainTrackId={mainTrackId}
+									<TimelineTrackRows
+										mainTrackId={mainTrackId}
 										zoomLevel={zoomLevel}
 										dragState={dragState}
 										tracksScrollRef={tracksScrollRef}
@@ -798,8 +806,7 @@ function TimelineTrackRows({
 						<div
 							className={cn(
 								"absolute right-0 left-0 transition-colors",
-								tracksWithSelection.has(track.id) &&
-									SELECTED_TRACK_ROW_CLASS,
+								tracksWithSelection.has(track.id) && SELECTED_TRACK_ROW_CLASS,
 							)}
 							style={{
 								top: `${TIMELINE_CONTENT_TOP_PADDING_PX + getCumulativeHeightBefore({ tracks, trackIndex: index, getExtraHeight: getTrackExpansionHeight })}px`,
@@ -932,9 +939,7 @@ function PropertyTree({ rows }: { rows: ExpandedRow[] }) {
 			{rows.map((row, index) => (
 				<div
 					key={row.propertyPath}
-					className={cn(
-						"flex shrink-0 items-center px-3 bg-muted/50",
-					)}
+					className={cn("flex shrink-0 items-center px-3 bg-muted/50")}
 					style={{ height: `${KEYFRAME_LANE_HEIGHT_PX}px` }}
 				>
 					<span className="text-muted-foreground truncate text-xs leading-none">

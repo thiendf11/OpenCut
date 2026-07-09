@@ -18,10 +18,7 @@ import { Button } from "@/components/ui/button";
 import { uppercase } from "@/utils/string";
 import { clamp, formatNumberForDisplay } from "@/utils/math";
 import { useEditor } from "@/hooks/use-editor";
-import {
-	CORNER_RADIUS_MAX,
-	CORNER_RADIUS_MIN,
-} from "@/lib/text/background";
+import { CORNER_RADIUS_MAX, CORNER_RADIUS_MIN } from "@/lib/text/background";
 import {
 	DEFAULT_TEXT_COLOR,
 	MAX_FONT_SIZE,

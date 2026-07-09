@@ -48,16 +48,36 @@ export const tiktokGuide: GuideDefinition = {
 	...platformGuide({ id: "tiktok", label: "TikTok", domain: "tiktok.com" }),
 	renderOverlay: () => <TikTokLayout />,
 };
-export const igReelsGuide = platformGuide({
-	id: "ig-reels",
-	label: "Reels",
-	domain: "instagram.com",
-});
-export const ytShortsGuide = platformGuide({
-	id: "yt-shorts",
-	label: "Shorts",
-	domain: "youtube.com",
-});
+export const igReelsGuide: GuideDefinition = {
+	...platformGuide({ id: "ig-reels", label: "Reels", domain: "instagram.com" }),
+	renderOverlay: () => (
+		<div className="absolute inset-0 pointer-events-none">
+			<Image
+				src="/platform-guides/instagram-reel-blueprint.png"
+				alt="Instagram Reel layout guide"
+				className="absolute inset-0 w-full h-full object-contain"
+				draggable={false}
+				fill
+			/>
+		</div>
+	),
+};
+
+export const ytShortsGuide: GuideDefinition = {
+	...platformGuide({ id: "yt-shorts", label: "Shorts", domain: "youtube.com" }),
+	renderOverlay: () => (
+		<div className="absolute inset-0 pointer-events-none">
+			<Image
+				src="/platform-guides/youtubeshort-blueprint.png"
+				alt="YouTube Short layout guide"
+				className="absolute inset-0 w-full h-full object-contain"
+				draggable={false}
+				fill
+			/>
+		</div>
+	),
+};
+
 export const spotlightGuide = platformGuide({
 	id: "spotlight",
 	label: "Spotlight",

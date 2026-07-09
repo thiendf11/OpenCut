@@ -96,7 +96,8 @@ export function useKeyframeBoxSelect({
 	}, [keyframeEntries]);
 
 	const selectedIds = useMemo(
-		() => selectedKeyframes.map((keyframe) => getSelectedKeyframeId({ keyframe })),
+		() =>
+			selectedKeyframes.map((keyframe) => getSelectedKeyframeId({ keyframe })),
 		[selectedKeyframes],
 	);
 
@@ -168,10 +169,7 @@ export function useKeyframeBoxSelect({
 
 			if (isAdditive) {
 				setKeyframeSelection({
-					keyframes: [
-						...initialKeyframesRef.current,
-						...intersectedRefs,
-					],
+					keyframes: [...initialKeyframesRef.current, ...intersectedRefs],
 				});
 			} else {
 				setKeyframeSelection({ keyframes: intersectedRefs });
