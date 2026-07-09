@@ -1,231 +1,238 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import {
-  getCollections,
-  getCollection,
-  searchIcons,
-  downloadSvgAsText,
-  svgToFile,
-  type IconSet,
-  type CollectionInfo,
-  type IconSearchResult,
-} from "@/lib/iconify-api";
-import { useProjectStore } from "@/stores/project-store";
-import { useMediaStore } from "@/stores/media-store";
-import { useTimelineStore } from "@/stores/timeline-store";
-import { usePlaybackStore } from "@/stores/playback-store";
-import { TIMELINE_CONSTANTS } from "@/constants/timeline-constants";
-import type { MediaFile } from "@/types/media";
-
-export type StickerCategory = "all" | "general" | "brands" | "emoji";
-
-interface StickersStore {
-  searchQuery: string;
-  selectedCategory: StickerCategory;
-  selectedCollection: string | null;
-  viewMode: "search" | "browse" | "collection";
-
-  collections: Record<string, IconSet>;
-  currentCollection: CollectionInfo | null;
-  searchResults: IconSearchResult | null;
-  recentStickers: string[];
-  isLoadingCollections: boolean;
-  isLoadingCollection: boolean;
-  isSearching: boolean;
-  isDownloading: boolean;
-  addingSticker: string | null;
-
-  setSearchQuery: (query: string) => void;
-  setSelectedCategory: (category: StickerCategory) => void;
-  setSelectedCollection: (collection: string | null) => void;
-  setViewMode: (mode: "search" | "browse" | "collection") => void;
-
-  loadCollections: () => Promise<void>;
-  loadCollection: (prefix: string) => Promise<void>;
-  searchStickers: (query: string) => Promise<void>;
-  downloadSticker: (iconName: string) => Promise<File | null>;
-  addStickerToTimeline: (iconName: string) => Promise<void>;
-
-  addToRecentStickers: (iconName: string) => void;
-  clearRecentStickers: () => void;
-}
+	browseAll,
+	browseCategory,
+	searchAll,
+	searchStickers as searchStickersFromProviders,
+} from "@/lib/stickers";
+import type { StickerBrowseResult, StickerSearchResult } from "@/lib/stickers";
+import { STICKER_CATEGORIES } from "@/lib/stickers/categories";
+import type { StickerCategory } from "@/lib/stickers/types";
+import { registerDefaultStickerProviders } from "@/lib/stickers/providers";
+import { stickersRegistry } from "@/lib/stickers/registry";
+import { parseStickerId } from "@/lib/stickers/sticker-id";
 
 const MAX_RECENT_STICKERS = 50;
+let browseRequestVersion = 0;
 
-export const useStickersStore = create<StickersStore>((set, get) => ({
-  searchQuery: "",
-  selectedCategory: "all",
-  selectedCollection: null,
-  viewMode: "browse",
+function isValidStickerId(value: unknown): value is string {
+	if (typeof value !== "string") {
+		return false;
+	}
 
-  collections: {},
-  currentCollection: null,
-  searchResults: null,
-  recentStickers: [],
+	try {
+		const parsed = parseStickerId({ stickerId: value });
+		return stickersRegistry.has(parsed.providerId);
+	} catch {
+		return false;
+	}
+}
 
-  isLoadingCollections: false,
-  isLoadingCollection: false,
-  isSearching: false,
-  isDownloading: false,
-  addingSticker: null,
+function sanitizeRecentStickers({
+	recentStickers,
+}: {
+	recentStickers: unknown;
+}): string[] {
+	registerDefaultStickerProviders({});
 
-  setSearchQuery: (query) => set({ searchQuery: query }),
+	if (!Array.isArray(recentStickers)) {
+		return [];
+	}
 
-  setSelectedCategory: (category) =>
-    set({
-      selectedCategory: category,
-      viewMode: "browse",
-      selectedCollection: null,
-      currentCollection: null,
-    }),
+	const sanitized: string[] = [];
+	for (const stickerId of recentStickers) {
+		if (!isValidStickerId(stickerId)) {
+			continue;
+		}
+		if (sanitized.includes(stickerId)) {
+			continue;
+		}
+		sanitized.push(stickerId);
+		if (sanitized.length >= MAX_RECENT_STICKERS) {
+			break;
+		}
+	}
 
-  setSelectedCollection: (collection) => {
-    set({
-      selectedCollection: collection,
-      viewMode: collection ? "collection" : "browse",
-      currentCollection: null,
-    });
+	return sanitized;
+}
 
-    if (collection) {
-      get().loadCollection(collection);
-    }
-  },
+type ViewMode = "search" | "browse";
 
-  setViewMode: (mode) => set({ viewMode: mode }),
+interface StickersStore {
+	searchQuery: string;
+	selectedCategory: StickerCategory;
+	viewMode: ViewMode;
+	searchResults: StickerSearchResult | null;
+	browseContent: StickerBrowseResult | null;
+	recentStickers: string[];
+	isSearching: boolean;
+	isBrowsing: boolean;
 
-  loadCollections: async () => {
-    set({ isLoadingCollections: true });
-    try {
-      const collections = await getCollections();
-      set({ collections });
-    } catch (error) {
-      console.error("Failed to load collections:", error);
-    } finally {
-      set({ isLoadingCollections: false });
-    }
-  },
+	setSearchQuery: ({ query }: { query: string }) => void;
+	setSelectedCategory: ({ category }: { category: StickerCategory }) => void;
+	searchStickers: ({ query }: { query: string }) => Promise<void>;
+	browseStickers: () => Promise<void>;
+	addToRecentStickers: ({ stickerId }: { stickerId: string }) => void;
+	clearRecentStickers: () => void;
+}
 
-  loadCollection: async (prefix: string) => {
-    set({ isLoadingCollection: true });
-    try {
-      const collection = await getCollection(prefix);
-      set({ currentCollection: collection });
-    } catch (error) {
-      console.error(`Failed to load collection ${prefix}:`, error);
-      set({ currentCollection: null });
-    } finally {
-      set({ isLoadingCollection: false });
-    }
-  },
+export const useStickersStore = create<StickersStore>()(
+	persist(
+		(set, get) => ({
+			searchQuery: "",
+			selectedCategory: "all",
+			viewMode: "browse",
 
-  searchStickers: async (query: string) => {
-    if (!query.trim()) {
-      set({ searchResults: null, viewMode: "browse" });
-      return;
-    }
+			searchResults: null,
+			browseContent: null,
+			recentStickers: [],
 
-    const { selectedCategory } = get();
+			isSearching: false,
+			isBrowsing: false,
 
-    set({ isSearching: true, viewMode: "search" });
-    try {
-      let category: string | undefined;
+			setSearchQuery: ({ query }) => set({ searchQuery: query }),
 
-      if (selectedCategory !== "all") {
-        if (selectedCategory === "general") {
-          category = "General";
-        } else if (selectedCategory === "brands") {
-          category = "Brands / Social";
-        } else if (selectedCategory === "emoji") {
-          category = "Emoji";
-        }
-      }
+		setSelectedCategory: ({ category }) => {
+			set({
+				selectedCategory: category in STICKER_CATEGORIES ? category : "all",
+				browseContent: null,
+			});
 
-      const results = await searchIcons(query, 100, undefined, category);
-      set({ searchResults: results });
-    } catch (error) {
-      console.error("Search failed:", error);
-      set({ searchResults: null });
-    } finally {
-      set({ isSearching: false });
-    }
-  },
+			const query = get().searchQuery.trim();
+			if (query) {
+				void get().searchStickers({ query });
+				return;
+			}
 
-  downloadSticker: async (iconName: string) => {
-    set({ isDownloading: true });
-    try {
-      const svgText = await downloadSvgAsText(iconName, {
-        width: 200,
-        height: 200,
-      });
+			void get().browseStickers();
+		},
 
-      const fileName = `${iconName.replace(":", "-")}.svg`;
-      const file = svgToFile(svgText, fileName);
+			searchStickers: async ({ query }: { query: string }) => {
+				const trimmedQuery = query.trim();
+				if (!trimmedQuery) {
+					set({ searchResults: null, viewMode: "browse" });
+					await get().browseStickers();
+					return;
+				}
 
-      get().addToRecentStickers(iconName);
+				const category = get().selectedCategory;
+				const selectedCategory =
+					category in STICKER_CATEGORIES ? category : "all";
 
-      return file;
-    } catch (error) {
-      console.error(`Failed to download sticker ${iconName}:`, error);
-      return null;
-    } finally {
-      set({ isDownloading: false });
-    }
-  },
+				set({ isSearching: true, viewMode: "search" });
+				try {
+					if (selectedCategory === "all") {
+						const browseContent = await searchAll({ query: trimmedQuery });
+						set({ browseContent, searchResults: null });
+					} else {
+						const results = await searchStickersFromProviders({
+							query: trimmedQuery,
+							category: selectedCategory,
+							limit: 100,
+						});
+						set({ searchResults: results });
+					}
+				} catch (error) {
+					console.error("Search failed:", error);
+					set({ searchResults: null });
+				} finally {
+					set({ isSearching: false });
+				}
+			},
 
-  addStickerToTimeline: async (iconName: string) => {
-    set({ addingSticker: iconName });
-    try {
-      const { activeProject } = useProjectStore.getState();
-      if (!activeProject) {
-        throw new Error("No active project");
-      }
+		browseStickers: async () => {
+			const version = ++browseRequestVersion;
+			const category = get().selectedCategory;
+			const selectedCategory =
+				category in STICKER_CATEGORIES ? category : "all";
 
-      const file = await get().downloadSticker(iconName);
-      if (!file) {
-        throw new Error("Failed to download sticker");
-      }
+			set({ isBrowsing: true, viewMode: "browse" });
+			try {
+				const browseContent =
+					selectedCategory === "all"
+						? await browseAll({
+								recentStickers: get().recentStickers,
+							})
+						: await browseCategory({
+								category: selectedCategory,
+							});
 
-      const mediaItem: Omit<MediaFile, "id"> = {
-        name: iconName.replace(":", "-"),
-        type: "image",
-        file,
-        url: URL.createObjectURL(file),
-        width: 200,
-        height: 200,
-        duration: TIMELINE_CONSTANTS.DEFAULT_IMAGE_DURATION,
-        ephemeral: false,
-      };
+				if (version !== browseRequestVersion) return;
+				set({ browseContent });
+			} catch (error) {
+				if (version !== browseRequestVersion) return;
+				console.error("Browse failed:", error);
+				set({ browseContent: null });
+			} finally {
+				if (version === browseRequestVersion) {
+					set({ isBrowsing: false });
+				}
+			}
+		},
 
-      const { addMediaFile } = useMediaStore.getState();
-      await addMediaFile(activeProject.id, mediaItem);
+		addToRecentStickers: ({ stickerId }: { stickerId: string }) => {
+			const sanitizedStickerIds = sanitizeRecentStickers({
+				recentStickers: [stickerId],
+			});
+			if (sanitizedStickerIds.length === 0) {
+				return;
+			}
 
-      const added = useMediaStore
-        .getState()
-        .mediaFiles.find(
-          (m) => m.url === mediaItem.url && m.name === mediaItem.name
-        );
-      if (!added) {
-        throw new Error("Sticker not in media store");
-      }
+			set((state) => {
+				const recent = [
+					sanitizedStickerIds[0],
+					...state.recentStickers.filter((s) => s !== sanitizedStickerIds[0]),
+				];
+				return {
+					recentStickers: recent.slice(0, MAX_RECENT_STICKERS),
+				};
+			});
 
-      const { currentTime } = usePlaybackStore.getState();
-      const { addElementAtTime } = useTimelineStore.getState();
-      addElementAtTime(added, currentTime);
-    } finally {
-      set({ addingSticker: null });
-    }
-  },
+			if (get().viewMode === "browse" && get().selectedCategory === "all") {
+				void get().browseStickers();
+			}
+		},
 
-  addToRecentStickers: (iconName: string) => {
-    set((state) => {
-      const recent = [
-        iconName,
-        ...state.recentStickers.filter((s) => s !== iconName),
-      ];
-      return {
-        recentStickers: recent.slice(0, MAX_RECENT_STICKERS),
-      };
-    });
-  },
+			clearRecentStickers: () => {
+				set({ recentStickers: [] });
 
-  clearRecentStickers: () => set({ recentStickers: [] }),
-}));
+				if (get().viewMode === "browse" && get().selectedCategory === "all") {
+					void get().browseStickers();
+				}
+			},
+		}),
+		{
+			name: "stickers-settings",
+			version: 1,
+			migrate: (persistedState) => {
+				if (
+					typeof persistedState === "object" &&
+					persistedState !== null &&
+					"selectedCategory" in persistedState
+				) {
+					const typedState = persistedState as {
+						selectedCategory?: string;
+						recentStickers?: string[];
+					};
+					const category = typedState.selectedCategory ?? "all";
+					return {
+						...typedState,
+						selectedCategory:
+							category in STICKER_CATEGORIES
+								? (category as StickerCategory)
+								: "all",
+						recentStickers: sanitizeRecentStickers({
+							recentStickers: typedState.recentStickers ?? [],
+						}),
+					};
+				}
+				return persistedState;
+			},
+			partialize: (state) => ({
+				selectedCategory: state.selectedCategory,
+				recentStickers: state.recentStickers,
+			}),
+		},
+	),
+);

@@ -1,5 +1,15 @@
 # Contributing to OpenCut
 
+⚠️ We are currently NOT accepting feature PRs while we build out the core editor.
+
+If you want to contribute:
+
+1. Open an issue first to discuss
+2. Wait for maintainer approval
+3. Only then start coding
+
+Critical bug fixes may be accepted on a case-by-case basis.
+
 Thank you for your interest in contributing to OpenCut! This document provides guidelines and instructions for contributing.
 
 ## Getting Started
@@ -10,6 +20,7 @@ Thank you for your interest in contributing to OpenCut! This document provides g
 - [Bun](https://bun.sh/docs/installation)
   (for `npm` alternative)
 - [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/)
+- Rust toolchain (only needed for `apps/desktop`)
 
 > **Note:** Docker is optional, but it's essential for running the local database and Redis services. If you're planning to contribute to frontend features, you can skip the Docker setup. If you have followed the steps below in [Setup](#setup), you're all set to go!
 
@@ -34,10 +45,13 @@ Thank you for your interest in contributing to OpenCut! This document provides g
 5. Install dependencies: `bun install`
 6. Start the development server: `bun run dev`
 
-> **Note:** If you see an error like `Unsupported URL Type "workspace:*"` when running `npm install`, you have two options:
+> **Note:** Web development uses the published `opencut-wasm` package by default, so a fresh clone does not need a local WASM build.
 >
-> 1. Upgrade to a recent npm version (v9 or later), which has full workspace protocol support.
-> 2. Use an alternative package manager such as **bun** or **pnpm**.
+> If you are editing `rust/wasm`, run `bun run build:wasm`, then `cd rust/wasm/pkg && bun link`, then `cd ../../../apps/web && bun link opencut-wasm`.
+
+### Desktop setup
+
+Only needed if you're working on `apps/desktop`. See [`apps/desktop/README.md`](../apps/desktop/README.md) — it's a two-step process: Rust toolchain first via `script/setup-rust`, then desktop native dependencies via `apps/desktop/script/setup`.
 
 ## What to Focus On
 
@@ -98,11 +112,11 @@ If you're unsure whether your idea falls into the preview category, feel free to
 
    ```bash
    # Database (matches docker-compose.yaml)
-   DATABASE_URL="postgresql://opencut:opencutthegoat@localhost:5432/opencut"
+   DATABASE_URL="postgresql://opencut:opencut@localhost:5432/opencut"
 
    # Generate a secure secret for Better Auth
    BETTER_AUTH_SECRET="your-generated-secret-here"
-   NEXT_PUBLIC_BETTER_AUTH_URL="http://localhost:3000"
+   NEXT_PUBLIC_SITE_URL="http://localhost:3000"
 
    # Redis (matches docker-compose.yaml)
    UPSTASH_REDIS_REST_URL="http://localhost:8079"
@@ -130,6 +144,10 @@ If you're unsure whether your idea falls into the preview category, feel free to
 5. Run database migrations: `bun run db:migrate`
 6. Start the development server: `bun run dev`
 
+### Desktop
+
+Working on `apps/desktop`? See [`apps/desktop/README.md`](../apps/desktop/README.md) for setup. Web-only contributors can ignore this entirely.
+
 ## How to Contribute
 
 ### Reporting Bugs
@@ -148,11 +166,13 @@ If you're unsure whether your idea falls into the preview category, feel free to
 
 1. Create a new branch: `git checkout -b feature/your-feature-name`
 2. Make your changes
-3. Navigate to the web app directory: `cd apps/web`
-4. Run the linter: `bun run lint`
-5. Format your code: `bunx biome format --write .`
-6. Commit your changes with a descriptive message
-7. Push to your fork and create a pull request
+3. Run the relevant checks for the area you touched:
+
+   - Web changes: from `apps/web`, run `bun run lint` and `bunx biome format --write .`
+   - Desktop changes: run `./apps/desktop/script/setup` if your environment isn't set up yet
+
+4. Commit your changes with a descriptive message
+5. Push to your fork and create a pull request
 
 ## Code Style
 
