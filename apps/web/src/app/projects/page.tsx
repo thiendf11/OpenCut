@@ -78,7 +78,7 @@ const formatProjectDuration = ({
 
 	const durationSeconds = mediaTimeToSeconds({ time: duration });
 	const format = durationSeconds >= 3600 ? "HH:MM:SS" : "MM:SS";
-	return formatTimecode({ time: duration, format }) ?? "";
+	return formatTimecode({ time: Math.round(duration), format }) ?? "";
 };
 
 const VIEW_MODE_OPTIONS = [

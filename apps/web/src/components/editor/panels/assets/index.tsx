@@ -10,6 +10,7 @@ import { SoundsView } from "./views/sounds";
 import { StickersView } from "./views/stickers";
 import { TextView } from "./views/text";
 import { EffectsView } from "./views/effects";
+import { RankingsView } from "./views/rankings";
 
 export function AssetsPanel() {
 	const { activeTab } = useAssetsPanelStore();
@@ -31,6 +32,7 @@ export function AssetsPanel() {
 				Adjustment view coming soon...
 			</div>
 		),
+		rankings: <RankingsView />,
 		settings: <SettingsView />,
 	};
 

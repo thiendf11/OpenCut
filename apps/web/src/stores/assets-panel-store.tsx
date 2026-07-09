@@ -11,7 +11,7 @@ import {
 	TextIcon,
 	Settings01Icon,
 	SlidersHorizontalIcon,
-	ColorsIcon,
+	CrownIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 
@@ -24,6 +24,7 @@ export const TAB_KEYS = [
 	"transitions",
 	"captions",
 	"adjustment",
+	"rankings",
 	"settings",
 ] as const;
 
@@ -67,6 +68,10 @@ export const tabs = {
 	adjustment: {
 		icon: createHugeiconsIcon({ icon: SlidersHorizontalIcon }),
 		label: "Adjustment",
+	},
+	rankings: {
+		icon: createHugeiconsIcon({ icon: CrownIcon }),
+		label: "Rankings",
 	},
 	settings: {
 		icon: createHugeiconsIcon({ icon: Settings01Icon }),
