@@ -35,10 +35,21 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
+const CATEGORIES = [
+	{ id: "trending", label: "Trending" },
+	{ id: "memes", label: "Memes" },
+	{ id: "games", label: "Games" },
+	{ id: "funny", label: "Funny / Prank" },
+	{ id: "anime", label: "Anime" },
+	{ id: "music", label: "Music" },
+	{ id: "movies", label: "Movies & TV" },
+	{ id: "tiktok", label: "TikTok Trends" },
+];
+
 export function SoundsView() {
 	return (
 		<div className="flex h-full flex-col">
-			<Tabs defaultValue="sound-effects" className="flex h-full flex-col">
+			<Tabs defaultValue="saved" className="flex h-full flex-col">
 				<div className="px-3 pt-4 pb-0">
 					<TabsList>
 						<TabsTrigger value="sound-effects">Sound effects</TabsTrigger>
@@ -82,6 +93,10 @@ function SoundEffectsView() {
 		setCurrentPage,
 		setHasNextPage,
 		setTotalCount,
+		searchProvider,
+		setSearchProvider,
+		selectedCategory,
+		setSelectedCategory,
 	} = useSoundsStore();
 	const {
 		results: searchResults,
@@ -124,7 +139,7 @@ function SoundEffectsView() {
 				}
 
 				const response = await fetch(
-					"/api/sounds/search?page_size=50&sort=downloads",
+					`/api/sounds/search?page_size=50&sort=downloads&provider=${searchProvider}&category=${encodeURIComponent(selectedCategory)}`,
 				);
 
 				if (!shouldIgnore) {
@@ -170,6 +185,8 @@ function SoundEffectsView() {
 		setCurrentPage,
 		setHasNextPage,
 		setTotalCount,
+		searchProvider,
+		selectedCategory,
 	]);
 
 	useEffect(() => {
@@ -206,7 +223,10 @@ function SoundEffectsView() {
 		audioElement?.pause();
 
 		if (sound.previewUrl) {
-			const audio = new Audio(sound.previewUrl);
+			const playUrl = sound.previewUrl.includes("myinstants.com")
+				? `/api/proxy?url=${encodeURIComponent(sound.previewUrl)}`
+				: sound.previewUrl;
+			const audio = new Audio(playUrl);
 			audio.addEventListener("ended", () => {
 				setPlayingId(null);
 			});
@@ -225,42 +245,91 @@ function SoundEffectsView() {
 
 	return (
 		<div className="mt-1 flex h-full flex-col gap-5">
-			<div className="flex items-center gap-3">
-				<Input
-					placeholder="Search sound effects"
-					className="w-full"
-					containerClassName="w-full"
-					value={searchQuery}
-					onChange={({ currentTarget }) =>
-						setSearchQuery({ query: currentTarget.value })
-					}
-					showClearIcon
-					onClear={() => setSearchQuery({ query: "" })}
-				/>
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button
-							variant="text"
-							size="icon"
-							className={cn(showCommercialOnly && "text-primary")}
+			<div className="flex flex-col gap-3.5">
+				<div className="flex items-center gap-3">
+					<Input
+						placeholder="Search sound effects"
+						className="w-full"
+						containerClassName="w-full"
+						value={searchQuery}
+						onChange={({ currentTarget }) =>
+							setSearchQuery({ query: currentTarget.value })
+						}
+						showClearIcon
+						onClear={() => setSearchQuery({ query: "" })}
+					/>
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button
+								variant="text"
+								size="icon"
+								className={cn(showCommercialOnly && "text-primary")}
+							>
+								<HugeiconsIcon icon={FilterMailIcon} />
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end" className="w-56">
+							<DropdownMenuCheckboxItem
+								checked={showCommercialOnly}
+								onCheckedChange={() => toggleCommercialFilter()}
+							>
+								Show only commercially licensed
+							</DropdownMenuCheckboxItem>
+							<div className="text-muted-foreground px-2 py-1.5 text-xs">
+								{showCommercialOnly
+									? "Only showing sounds licensed for commercial use"
+									: "Showing all sounds regardless of license"}
+							</div>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</div>
+				<div className="flex items-center gap-1 bg-accent/40 rounded-lg p-1 self-start text-xs font-semibold select-none border border-accent">
+					<button
+						type="button"
+						onClick={() => setSearchProvider("freesound")}
+						className={cn(
+							"px-3 py-1.5 rounded-md transition-all duration-200 cursor-pointer",
+							searchProvider === "freesound"
+								? "bg-background text-foreground shadow-sm scale-102"
+								: "text-muted-foreground hover:text-foreground"
+						)}
+					>
+						Freesound
+					</button>
+					<button
+						type="button"
+						onClick={() => setSearchProvider("myinstants")}
+						className={cn(
+							"px-3 py-1.5 rounded-md transition-all duration-200 cursor-pointer",
+							searchProvider === "myinstants"
+								? "bg-background text-foreground shadow-sm scale-102"
+								: "text-muted-foreground hover:text-foreground"
+						)}
+					>
+						MyInstants (Meme / sfx)
+					</button>
+				</div>
+			</div>
+
+			<div className="flex gap-1.5 overflow-x-auto py-1 select-none scrollbar-hidden">
+				{CATEGORIES.map((cat) => {
+					const isActive = selectedCategory === cat.id;
+					return (
+						<button
+							key={cat.id}
+							type="button"
+							onClick={() => setSelectedCategory(cat.id)}
+							className={cn(
+								"px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200 cursor-pointer border",
+								isActive
+									? "bg-primary border-primary text-primary-foreground shadow-sm scale-102"
+									: "bg-accent/20 border-accent/40 text-muted-foreground hover:text-foreground hover:bg-accent/40"
+							)}
 						>
-							<HugeiconsIcon icon={FilterMailIcon} />
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end" className="w-56">
-						<DropdownMenuCheckboxItem
-							checked={showCommercialOnly}
-							onCheckedChange={() => toggleCommercialFilter()}
-						>
-							Show only commercially licensed
-						</DropdownMenuCheckboxItem>
-						<div className="text-muted-foreground px-2 py-1.5 text-xs">
-							{showCommercialOnly
-								? "Only showing sounds licensed for commercial use"
-								: "Showing all sounds regardless of license"}
-						</div>
-					</DropdownMenuContent>
-				</DropdownMenu>
+							{cat.label}
+						</button>
+					);
+				})}
 			</div>
 
 			<div className="relative h-full overflow-hidden">
@@ -333,7 +402,10 @@ function SavedSoundsView() {
 		audioElement?.pause();
 
 		if (sound.previewUrl) {
-			const audio = new Audio(sound.previewUrl);
+			const playUrl = sound.previewUrl.includes("myinstants.com")
+				? `/api/proxy?url=${encodeURIComponent(sound.previewUrl)}`
+				: sound.previewUrl;
+			const audio = new Audio(playUrl);
 			audio.addEventListener("ended", () => {
 				setPlayingId(null);
 			});
@@ -493,17 +565,17 @@ function AudioItem({ sound, isPlaying, onPlay }: AudioItemProps) {
 		onPlay({ sound });
 	};
 
-	const handleSaveClick = ({
-		stopPropagation,
-	}: React.MouseEvent<HTMLButtonElement>) => {
-		stopPropagation();
+	const handleSaveClick = (
+		e?: React.MouseEvent<HTMLButtonElement>,
+	) => {
+		e?.stopPropagation();
 		toggleSavedSound({ soundEffect: sound });
 	};
 
-	const handleAddToTimeline = async ({
-		stopPropagation,
-	}: React.MouseEvent<HTMLButtonElement>) => {
-		stopPropagation();
+	const handleAddToTimeline = async (
+		e?: React.MouseEvent<HTMLButtonElement>,
+	) => {
+		e?.stopPropagation();
 		await addSoundToTimeline({ sound });
 	};
 

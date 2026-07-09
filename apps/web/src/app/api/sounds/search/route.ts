@@ -13,6 +13,8 @@ const searchParamsSchema = z.object({
 		.default("downloads"),
 	min_rating: z.coerce.number().min(0).max(5).default(3),
 	commercial_only: z.coerce.boolean().default(true),
+	provider: z.enum(["freesound", "myinstants"]).default("freesound"),
+	category: z.string().optional(),
 });
 
 const freesoundResultSchema = z.object({
@@ -147,6 +149,102 @@ function transformFreesoundResult(
 	};
 }
 
+function decodeHTMLEntities(text: string): string {
+	return text
+		.replace(/&amp;/g, "&")
+		.replace(/&lt;/g, "<")
+		.replace(/&gt;/g, ">")
+		.replace(/&quot;/g, '"')
+		.replace(/&#39;/g, "'")
+		.replace(/&apos;/g, "'");
+}
+
+function getHashNumber(str: string): number {
+	let hash = 0;
+	for (let i = 0; i < str.length; i++) {
+		const char = str.charCodeAt(i);
+		hash = (hash << 5) - hash + char;
+		hash |= 0;
+	}
+	return Math.abs(hash);
+}
+
+async function searchMyInstants({
+	query,
+	category,
+	page,
+}: {
+	query?: string;
+	category?: string;
+	page: number;
+}) {
+	let url: string;
+	if (query) {
+		url = `https://www.myinstants.com/en/search/?name=${encodeURIComponent(query)}&page=${page}`;
+	} else if (category && category !== "trending") {
+		let myinstantsCat = category;
+		if (category === "anime") myinstantsCat = "anime & manga";
+		else if (category === "funny") myinstantsCat = "pranks";
+		else if (category === "tiktok") myinstantsCat = "tiktok trends";
+		else if (category === "movies") myinstantsCat = "movies";
+		url = `https://www.myinstants.com/en/categories/${encodeURIComponent(myinstantsCat)}/?page=${page}`;
+	} else {
+		url = `https://www.myinstants.com/en/index/vn/?page=${page}`;
+	}
+
+	const response = await fetch(url, {
+		headers: {
+			"User-Agent":
+				"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+		},
+	});
+
+	if (!response.ok) {
+		throw new Error(`Myinstants returned status ${response.status}`);
+	}
+
+	const html = await response.text();
+	const results: any[] = [];
+	const regex = /<div class="instant">[\s\S]*?onclick="play\('([^']+)'[^)]*\)[\s\S]*?class="[^"]*instant-link[^"]*">([^<]+)<\/a>/g;
+
+	let match;
+	while ((match = regex.exec(html)) !== null) {
+		const mp3Path = match[1];
+		const rawName = match[2].trim();
+		const name = decodeHTMLEntities(rawName);
+		const id = getHashNumber(mp3Path || name);
+		
+		const previewUrl = mp3Path.startsWith("http")
+			? mp3Path
+			: `https://www.myinstants.com${mp3Path}`;
+
+		results.push({
+			id,
+			name,
+			description: `Myinstants sound effect: ${name}`,
+			url: previewUrl,
+			previewUrl,
+			downloadUrl: previewUrl,
+			duration: 5.0,
+			filesize: 0,
+			type: "audio",
+			channels: 2,
+			bitrate: 128,
+			bitdepth: 16,
+			samplerate: 44100,
+			username: "MyInstants",
+			tags: [query || "trending", "myinstants"],
+			license: "Unknown",
+			created: new Date().toISOString(),
+			downloads: 0,
+			rating: 5,
+			ratingCount: 1,
+		});
+	}
+
+	return results;
+}
+
 export async function GET(request: NextRequest) {
 	try {
 		const { limited } = await checkRateLimit({ request });
@@ -163,6 +261,8 @@ export async function GET(request: NextRequest) {
 			page_size: searchParams.get("page_size") || undefined,
 			sort: searchParams.get("sort") || undefined,
 			min_rating: searchParams.get("min_rating") || undefined,
+			provider: searchParams.get("provider") || undefined,
+			category: searchParams.get("category") || undefined,
 		});
 
 		if (!validationResult.success) {
@@ -183,6 +283,8 @@ export async function GET(request: NextRequest) {
 			sort,
 			min_rating,
 			commercial_only,
+			provider,
+			category,
 		} = validationResult.data;
 
 		if (type === "songs") {
@@ -194,6 +296,44 @@ export async function GET(request: NextRequest) {
 				},
 				{ status: 501 },
 			);
+		}
+
+		if (provider === "myinstants") {
+			const results = await searchMyInstants({ query, category, page });
+			const hasNext = results.length === 36;
+			
+			const categoryQueryParam = category ? `&category=${encodeURIComponent(category)}` : "";
+			
+			const responseData = {
+				count: hasNext ? (page + 1) * 36 : page * 36,
+				next: hasNext
+					? `/api/sounds/search?q=${encodeURIComponent(query || "")}&page=${page + 1}&provider=myinstants${categoryQueryParam}`
+					: null,
+				previous:
+					page > 1
+						? `/api/sounds/search?q=${encodeURIComponent(query || "")}&page=${page - 1}&provider=myinstants${categoryQueryParam}`
+						: null,
+				results,
+				query: query || "",
+				type: "effects",
+				page,
+				pageSize: 36,
+				sort: "downloads",
+			};
+
+			const responseValidation = apiResponseSchema.safeParse(responseData);
+			if (!responseValidation.success) {
+				console.error(
+					"Invalid Myinstants API response structure:",
+					responseValidation.error,
+				);
+				return NextResponse.json(
+					{ error: "Internal response formatting error" },
+					{ status: 500 },
+				);
+			}
+
+			return NextResponse.json(responseValidation.data);
 		}
 
 		const baseUrl = "https://freesound.org/apiv2/search/text/";
@@ -213,6 +353,13 @@ export async function GET(request: NextRequest) {
 		const isEffectsSearch = type === "effects" || !type;
 		if (isEffectsSearch) {
 			applyEffectsFilters({ params, min_rating, commercial_only });
+		}
+
+		if (category && category !== "trending") {
+			let freesoundTag = category;
+			if (category === "tiktok") freesoundTag = "viral";
+			else if (category === "movies") freesoundTag = "movie";
+			params.append("filter", `tag:${freesoundTag}`);
 		}
 
 		const response = await fetch(`${baseUrl}?${params.toString()}`);

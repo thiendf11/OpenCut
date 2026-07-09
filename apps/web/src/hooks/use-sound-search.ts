@@ -28,6 +28,8 @@ export function useSoundSearch({
 		appendSearchResults,
 		appendTopSounds,
 		resetPagination,
+		searchProvider,
+		selectedCategory,
 	} = useSoundsStore();
 
 	const loadMore = async () => {
@@ -40,10 +42,15 @@ export function useSoundSearch({
 			const searchParams = new URLSearchParams({
 				page: nextPage.toString(),
 				type: "effects",
+				provider: searchProvider,
 			});
 
 			if (query.trim()) {
 				searchParams.set("q", query);
+			}
+
+			if (selectedCategory) {
+				searchParams.set("category", selectedCategory);
 			}
 
 			searchParams.set("commercial_only", commercialOnly.toString());
@@ -55,14 +62,14 @@ export function useSoundSearch({
 				const data = await response.json();
 
 				if (query.trim()) {
-					appendSearchResults(data.results);
+					appendSearchResults({ results: data.results });
 				} else {
-					appendTopSounds(data.results);
+					appendTopSounds({ results: data.results });
 				}
 
 				setCurrentPage({ page: nextPage });
 				setHasNextPage({ hasNext: !!data.next });
-				setTotalCount(data.count);
+				setTotalCount({ count: data.count });
 			} else {
 				setSearchError({ error: `Load more failed: ${response.status}` });
 			}
@@ -96,7 +103,7 @@ export function useSoundSearch({
 				resetPagination();
 
 				const response = await fetch(
-					`/api/sounds/search?q=${encodeURIComponent(query)}&type=effects&page=1`,
+					`/api/sounds/search?q=${encodeURIComponent(query)}&type=effects&page=1&provider=${searchProvider}&category=${encodeURIComponent(selectedCategory)}`,
 				);
 
 				if (!ignore) {
@@ -140,6 +147,8 @@ export function useSoundSearch({
 		setHasNextPage,
 		setTotalCount,
 		resetPagination,
+		searchProvider,
+		selectedCategory,
 	]);
 
 	return {

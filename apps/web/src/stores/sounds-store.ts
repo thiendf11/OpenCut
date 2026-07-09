@@ -4,6 +4,7 @@ import { storageService } from "@/services/storage/service";
 import { toast } from "sonner";
 import { EditorCore } from "@/core";
 import { buildLibraryAudioElement } from "@/lib/timeline/element-utils";
+import { TICKS_PER_SECOND } from "@/lib/wasm";
 
 interface SoundsStore {
 	topSoundEffects: SoundEffect[];
@@ -26,6 +27,10 @@ interface SoundsStore {
 	isSavedSoundsLoaded: boolean;
 	isLoadingSavedSounds: boolean;
 	savedSoundsError: string | null;
+	searchProvider: "freesound" | "myinstants";
+	setSearchProvider: (provider: "freesound" | "myinstants") => void;
+	selectedCategory: string;
+	setSelectedCategory: (category: string) => void;
 
 	addSoundToTimeline: ({ sound }: { sound: SoundEffect }) => Promise<boolean>;
 	setTopSoundEffects: ({ sounds }: { sounds: SoundEffect[] }) => void;
@@ -86,6 +91,28 @@ export const useSoundsStore = create<SoundsStore>((set, get) => ({
 	isSavedSoundsLoaded: false,
 	isLoadingSavedSounds: false,
 	savedSoundsError: null,
+	searchProvider: "freesound",
+	setSearchProvider: (provider) => {
+		set({
+			searchProvider: provider,
+			selectedCategory: "trending",
+			hasLoaded: false,
+			searchResults: [],
+			topSoundEffects: [],
+			searchQuery: "",
+		});
+	},
+	selectedCategory: "trending",
+	setSelectedCategory: (category) => {
+		set({
+			selectedCategory: category,
+			hasLoaded: false,
+			searchResults: [],
+			topSoundEffects: [],
+			currentPage: 1,
+			hasNextPage: false,
+		});
+	},
 
 	setTopSoundEffects: ({ sounds }) => set({ topSoundEffects: sounds }),
 	setLoading: ({ loading }) => set({ isLoading: loading }),
@@ -215,9 +242,12 @@ export const useSoundsStore = create<SoundsStore>((set, get) => ({
 		try {
 			const editor = EditorCore.getInstance();
 			const currentTime = editor.playback.getCurrentTime();
-			const tracks = editor.scenes.getActiveScene().tracks;
 
-			const response = await fetch(audioUrl);
+			const fetchUrl = audioUrl.includes("myinstants.com")
+				? `/api/proxy?url=${encodeURIComponent(audioUrl)}`
+				: audioUrl;
+
+			const response = await fetch(fetchUrl);
 			if (!response.ok)
 				throw new Error(`Failed to download audio: ${response.statusText}`);
 
@@ -225,25 +255,16 @@ export const useSoundsStore = create<SoundsStore>((set, get) => ({
 			const audioContext = new AudioContext();
 			const buffer = await audioContext.decodeAudioData(arrayBuffer);
 
-			const audioTrack = tracks.audio[0];
-			let trackId: string;
-
-			if (audioTrack) {
-				trackId = audioTrack.id;
-			} else {
-				trackId = editor.timeline.addTrack({ type: "audio" });
-			}
-
 			const element = buildLibraryAudioElement({
-				sourceUrl: audioUrl,
+				sourceUrl: fetchUrl,
 				name: sound.name,
-				duration: sound.duration,
+				duration: sound.duration ? Math.round(sound.duration * TICKS_PER_SECOND) : 5 * TICKS_PER_SECOND,
 				startTime: currentTime,
 				buffer,
 			});
 
 			editor.timeline.insertElement({
-				placement: { mode: "explicit", trackId },
+				placement: { mode: "auto" },
 				element,
 			});
 			return true;
