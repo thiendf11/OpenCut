@@ -196,6 +196,14 @@ async function searchMyInstants({
 		headers: {
 			"User-Agent":
 				"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+			"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+			"Accept-Language": "en-US,en;q=0.5",
+			"Upgrade-Insecure-Requests": "1",
+			"Sec-Fetch-Dest": "document",
+			"Sec-Fetch-Mode": "navigate",
+			"Sec-Fetch-Site": "none",
+			"Sec-Fetch-User": "?1",
+			"Cache-Control": "max-age=0",
 		},
 	});
 
@@ -299,41 +307,49 @@ export async function GET(request: NextRequest) {
 		}
 
 		if (provider === "myinstants") {
-			const results = await searchMyInstants({ query, category, page });
-			const hasNext = results.length === 36;
-			
-			const categoryQueryParam = category ? `&category=${encodeURIComponent(category)}` : "";
-			
-			const responseData = {
-				count: hasNext ? (page + 1) * 36 : page * 36,
-				next: hasNext
-					? `/api/sounds/search?q=${encodeURIComponent(query || "")}&page=${page + 1}&provider=myinstants${categoryQueryParam}`
-					: null,
-				previous:
-					page > 1
-						? `/api/sounds/search?q=${encodeURIComponent(query || "")}&page=${page - 1}&provider=myinstants${categoryQueryParam}`
+			try {
+				const results = await searchMyInstants({ query, category, page });
+				const hasNext = results.length === 36;
+				
+				const categoryQueryParam = category ? `&category=${encodeURIComponent(category)}` : "";
+				
+				const responseData = {
+					count: hasNext ? (page + 1) * 36 : page * 36,
+					next: hasNext
+						? `/api/sounds/search?q=${encodeURIComponent(query || "")}&page=${page + 1}&provider=myinstants${categoryQueryParam}`
 						: null,
-				results,
-				query: query || "",
-				type: "effects",
-				page,
-				pageSize: 36,
-				sort: "downloads",
-			};
+					previous:
+						page > 1
+							? `/api/sounds/search?q=${encodeURIComponent(query || "")}&page=${page - 1}&provider=myinstants${categoryQueryParam}`
+							: null,
+					results,
+					query: query || "",
+					type: "effects",
+					page,
+					pageSize: 36,
+					sort: "downloads",
+				};
 
-			const responseValidation = apiResponseSchema.safeParse(responseData);
-			if (!responseValidation.success) {
-				console.error(
-					"Invalid Myinstants API response structure:",
-					responseValidation.error,
+				const responseValidation = apiResponseSchema.safeParse(responseData);
+				if (!responseValidation.success) {
+					console.error(
+						"Invalid Myinstants API response structure:",
+						responseValidation.error,
+					);
+					return NextResponse.json(
+						{ error: "Internal response formatting error" },
+						{ status: 500 },
+					);
+				}
+
+				return NextResponse.json(responseValidation.data);
+			} catch (myInstantsError) {
+				console.warn(
+					"MyInstants search failed/blocked (falling back to Freesound):",
+					myInstantsError,
 				);
-				return NextResponse.json(
-					{ error: "Internal response formatting error" },
-					{ status: 500 },
-				);
+				// Fall through to Freesound
 			}
-
-			return NextResponse.json(responseValidation.data);
 		}
 
 		const baseUrl = "https://freesound.org/apiv2/search/text/";
@@ -419,8 +435,9 @@ export async function GET(request: NextRequest) {
 		return NextResponse.json(responseValidation.data);
 	} catch (error) {
 		console.error("Error searching sounds:", error);
+		const details = error instanceof Error ? error.message : String(error);
 		return NextResponse.json(
-			{ error: "Internal server error" },
+			{ error: "Internal server error", details },
 			{ status: 500 },
 		);
 	}
