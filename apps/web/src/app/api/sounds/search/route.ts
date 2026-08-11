@@ -178,32 +178,26 @@ async function searchMyInstants({
 	category?: string;
 	page: number;
 }) {
-	let url: string;
+	const params = new URLSearchParams();
 	if (query) {
-		url = `https://www.myinstants.com/en/search/?name=${encodeURIComponent(query)}&page=${page}`;
+		params.append("name", query);
 	} else if (category && category !== "trending") {
 		let myinstantsCat = category;
-		if (category === "anime") myinstantsCat = "anime & manga";
-		else if (category === "funny") myinstantsCat = "pranks";
-		else if (category === "tiktok") myinstantsCat = "tiktok trends";
-		else if (category === "movies") myinstantsCat = "movies";
-		url = `https://www.myinstants.com/en/categories/${encodeURIComponent(myinstantsCat)}/?page=${page}`;
-	} else {
-		url = `https://www.myinstants.com/en/index/vn/?page=${page}`;
+		if (category === "anime") myinstantsCat = "anime";
+		else if (category === "funny") myinstantsCat = "prank";
+		else if (category === "tiktok") myinstantsCat = "tiktok";
+		else if (category === "movies") myinstantsCat = "movie";
+		params.append("name", myinstantsCat);
 	}
+	params.append("page", page.toString());
+
+	const url = `https://www.myinstants.com/api/v1/instants/?${params.toString()}`;
 
 	const response = await fetch(url, {
 		headers: {
 			"User-Agent":
-				"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-			"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-			"Accept-Language": "en-US,en;q=0.5",
-			"Upgrade-Insecure-Requests": "1",
-			"Sec-Fetch-Dest": "document",
-			"Sec-Fetch-Mode": "navigate",
-			"Sec-Fetch-Site": "none",
-			"Sec-Fetch-User": "?1",
-			"Cache-Control": "max-age=0",
+				"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+			"Accept": "application/json",
 		},
 	});
 
@@ -211,25 +205,17 @@ async function searchMyInstants({
 		throw new Error(`Myinstants returned status ${response.status}`);
 	}
 
-	const html = await response.text();
-	const results: any[] = [];
-	const regex = /<div class="instant">[\s\S]*?onclick="play\('([^']+)'[^)]*\)[\s\S]*?class="[^"]*instant-link[^"]*">([^<]+)<\/a>/g;
-
-	let match;
-	while ((match = regex.exec(html)) !== null) {
-		const mp3Path = match[1];
-		const rawName = match[2].trim();
+	const data = await response.json();
+	const results = (data.results || []).map((item: any) => {
+		const rawName = item.name || "";
 		const name = decodeHTMLEntities(rawName);
-		const id = getHashNumber(mp3Path || name);
-		
-		const previewUrl = mp3Path.startsWith("http")
-			? mp3Path
-			: `https://www.myinstants.com${mp3Path}`;
+		const id = getHashNumber(item.sound || name);
+		const previewUrl = item.sound;
 
-		results.push({
+		return {
 			id,
 			name,
-			description: `Myinstants sound effect: ${name}`,
+			description: item.description || `Myinstants sound effect: ${name}`,
 			url: previewUrl,
 			previewUrl,
 			downloadUrl: previewUrl,
@@ -241,16 +227,20 @@ async function searchMyInstants({
 			bitdepth: 16,
 			samplerate: 44100,
 			username: "MyInstants",
-			tags: [query || "trending", "myinstants"],
+			tags: [query || category || "trending", "myinstants"],
 			license: "Unknown",
 			created: new Date().toISOString(),
 			downloads: 0,
 			rating: 5,
 			ratingCount: 1,
-		});
-	}
+		};
+	});
 
-	return results;
+	return {
+		results,
+		count: data.count || 0,
+		hasNext: !!data.next,
+	};
 }
 
 export async function GET(request: NextRequest) {
@@ -308,13 +298,12 @@ export async function GET(request: NextRequest) {
 
 		if (provider === "myinstants") {
 			try {
-				const results = await searchMyInstants({ query, category, page });
-				const hasNext = results.length === 36;
+				const { results, count, hasNext } = await searchMyInstants({ query, category, page });
 				
 				const categoryQueryParam = category ? `&category=${encodeURIComponent(category)}` : "";
 				
 				const responseData = {
-					count: hasNext ? (page + 1) * 36 : page * 36,
+					count: count,
 					next: hasNext
 						? `/api/sounds/search?q=${encodeURIComponent(query || "")}&page=${page + 1}&provider=myinstants${categoryQueryParam}`
 						: null,
@@ -326,7 +315,7 @@ export async function GET(request: NextRequest) {
 					query: query || "",
 					type: "effects",
 					page,
-					pageSize: 36,
+					pageSize: results.length || 36,
 					sort: "downloads",
 				};
 
