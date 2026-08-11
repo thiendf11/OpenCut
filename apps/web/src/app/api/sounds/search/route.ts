@@ -339,11 +339,11 @@ export async function GET(request: NextRequest) {
 				return NextResponse.json(responseValidation.data);
 			} catch (myInstantsError) {
 				console.error("[MyInstants Debug] Exception caught during search:", myInstantsError);
-				console.warn(
-					"MyInstants search failed/blocked (falling back to Freesound):",
-					myInstantsError instanceof Error ? myInstantsError.message : myInstantsError,
+				const details = myInstantsError instanceof Error ? myInstantsError.message : String(myInstantsError);
+				return NextResponse.json(
+					{ error: "Failed to search MyInstants", details },
+					{ status: 502 }
 				);
-				// Fall through to Freesound
 			}
 		}
 
