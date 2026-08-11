@@ -192,6 +192,7 @@ async function searchMyInstants({
 	params.append("page", page.toString());
 
 	const url = `https://www.myinstants.com/api/v1/instants/?${params.toString()}`;
+	console.log(`[MyInstants Debug] Fetching URL: ${url}`);
 
 	const response = await fetch(url, {
 		headers: {
@@ -201,8 +202,12 @@ async function searchMyInstants({
 		},
 	});
 
+	console.log(`[MyInstants Debug] Response status: ${response.status} ${response.statusText}`);
+
 	if (!response.ok) {
-		throw new Error(`Myinstants returned status ${response.status}`);
+		const errorText = await response.text();
+		console.error(`[MyInstants Debug] Error response body: ${errorText.substring(0, 500)}`);
+		throw new Error(`Myinstants returned status ${response.status}: ${errorText.substring(0, 200)}`);
 	}
 
 	const data = await response.json();
@@ -333,10 +338,10 @@ export async function GET(request: NextRequest) {
 
 				return NextResponse.json(responseValidation.data);
 			} catch (myInstantsError) {
-				
+				console.error("[MyInstants Debug] Exception caught during search:", myInstantsError);
 				console.warn(
 					"MyInstants search failed/blocked (falling back to Freesound):",
-					myInstantsError,
+					myInstantsError instanceof Error ? myInstantsError.message : myInstantsError,
 				);
 				// Fall through to Freesound
 			}
