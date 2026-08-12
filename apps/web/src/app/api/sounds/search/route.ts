@@ -178,20 +178,27 @@ async function searchMyInstants({
 	category?: string;
 	page: number;
 }) {
+	// myinstants-api.vercel.app doesn't support pagination, so if page > 1 we just return empty
+	if (page > 1) {
+		return { results: [], count: 0, hasNext: false };
+	}
+
+	let endpoint = 'search';
 	const params = new URLSearchParams();
 	if (query) {
-		params.append("name", query);
+		params.append("q", query);
 	} else if (category && category !== "trending") {
 		let myinstantsCat = category;
 		if (category === "anime") myinstantsCat = "anime";
 		else if (category === "funny") myinstantsCat = "prank";
 		else if (category === "tiktok") myinstantsCat = "tiktok";
 		else if (category === "movies") myinstantsCat = "movie";
-		params.append("name", myinstantsCat);
+		params.append("q", myinstantsCat);
+	} else {
+		endpoint = 'best';
 	}
-	params.append("page", page.toString());
 
-	const url = `https://www.myinstants.com/api/v1/instants/?${params.toString()}`;
+	const url = `https://myinstants-api.vercel.app/${endpoint}?${params.toString()}`;
 	console.log(`[MyInstants Debug] Fetching URL: ${url}`);
 
 	const response = await fetch(url, {
@@ -211,17 +218,17 @@ async function searchMyInstants({
 	}
 
 	const data = await response.json();
-	const results = (data.results || []).map((item: any) => {
-		const rawName = item.name || "";
+	const results = (data.data || []).map((item: any) => {
+		const rawName = item.title || "";
 		const name = decodeHTMLEntities(rawName);
-		const id = getHashNumber(item.sound || name);
-		const previewUrl = item.sound;
+		const id = getHashNumber(item.id || item.mp3 || name);
+		const previewUrl = item.mp3;
 
 		return {
 			id,
 			name,
 			description: item.description || `Myinstants sound effect: ${name}`,
-			url: previewUrl,
+			url: item.url || previewUrl,
 			previewUrl,
 			downloadUrl: previewUrl,
 			duration: 5.0,
@@ -243,8 +250,8 @@ async function searchMyInstants({
 
 	return {
 		results,
-		count: data.count || 0,
-		hasNext: !!data.next,
+		count: results.length,
+		hasNext: false,
 	};
 }
 
