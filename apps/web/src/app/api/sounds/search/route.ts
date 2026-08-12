@@ -185,9 +185,22 @@ async function searchMyInstants({
 
 	let endpoint = 'search';
 	const params = new URLSearchParams();
-	if (query) {
+
+	const exactEndpoints = ["trending", "best", "recent", "uploaded", "favorites", "detail"];
+	if (category && exactEndpoints.includes(category)) {
+		endpoint = category;
+		if (category === "trending" || category === "best") {
+			params.append("q", query || "vn");
+		} else if (category === "uploaded" || category === "favorites") {
+			if (query) params.append("username", query);
+		} else if (category === "detail") {
+			if (query) params.append("id", query);
+		}
+	} else if (query) {
+		endpoint = "search";
 		params.append("q", query);
-	} else if (category && category !== "trending") {
+	} else if (category) {
+		endpoint = "search";
 		let myinstantsCat = category;
 		if (category === "anime") myinstantsCat = "anime";
 		else if (category === "funny") myinstantsCat = "prank";
@@ -195,7 +208,9 @@ async function searchMyInstants({
 		else if (category === "movies") myinstantsCat = "movie";
 		params.append("q", myinstantsCat);
 	} else {
-		endpoint = 'best';
+		// Default when no query and no category
+		endpoint = 'trending';
+		params.append("q", "vn");
 	}
 
 	const url = `https://myinstants-api.vercel.app/${endpoint}?${params.toString()}`;
@@ -218,7 +233,14 @@ async function searchMyInstants({
 	}
 
 	const data = await response.json();
-	const results = (data.data || []).map((item: any) => {
+	let dataList = [];
+	if (Array.isArray(data.data)) {
+		dataList = data.data;
+	} else if (data.data) {
+		dataList = [data.data];
+	}
+
+	const results = dataList.map((item: any) => {
 		const rawName = item.title || "";
 		const name = decodeHTMLEntities(rawName);
 		const id = getHashNumber(item.id || item.mp3 || name);
