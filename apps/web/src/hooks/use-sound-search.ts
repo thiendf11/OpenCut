@@ -1,5 +1,22 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSoundsStore } from "@/stores/sounds-store";
+import { fetchMyInstantsDirectly } from "@/lib/sounds/myinstants-client";
+
+function useDebounce<T>(value: T, delay: number): T {
+	const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+	useEffect(() => {
+		const handler = setTimeout(() => {
+			setDebouncedValue(value);
+		}, delay);
+
+		return () => {
+			clearTimeout(handler);
+		};
+	}, [value, delay]);
+
+	return debouncedValue;
+}
 
 export function useSoundSearch({
 	query,
@@ -32,6 +49,8 @@ export function useSoundSearch({
 		selectedCategory,
 	} = useSoundsStore();
 
+	const debouncedQuery = useDebounce(query, 300);
+
 	const loadMore = async () => {
 		if (isLoadingMore || !hasNextPage) return;
 
@@ -39,40 +58,50 @@ export function useSoundSearch({
 			setLoadingMore({ loading: true });
 			const nextPage = currentPage + 1;
 
-			const searchParams = new URLSearchParams({
-				page: nextPage.toString(),
-				type: "effects",
-				provider: searchProvider,
-			});
+			let data;
+			if (searchProvider === "myinstants") {
+				data = await fetchMyInstantsDirectly({
+					query: debouncedQuery.trim(),
+					category: selectedCategory,
+					page: nextPage,
+				});
+			} else {
+				const searchParams = new URLSearchParams({
+					page: nextPage.toString(),
+					type: "effects",
+					provider: searchProvider,
+				});
 
-			if (query.trim()) {
-				searchParams.set("q", query);
-			}
-
-			if (selectedCategory) {
-				searchParams.set("category", selectedCategory);
-			}
-
-			searchParams.set("commercial_only", commercialOnly.toString());
-			const response = await fetch(
-				`/api/sounds/search?${searchParams.toString()}`,
-			);
-
-			if (response.ok) {
-				const data = await response.json();
-
-				if (query.trim()) {
-					appendSearchResults({ results: data.results });
-				} else {
-					appendTopSounds({ results: data.results });
+				if (debouncedQuery.trim()) {
+					searchParams.set("q", debouncedQuery);
 				}
 
-				setCurrentPage({ page: nextPage });
-				setHasNextPage({ hasNext: !!data.next });
-				setTotalCount({ count: data.count });
-			} else {
-				setSearchError({ error: `Load more failed: ${response.status}` });
+				if (selectedCategory) {
+					searchParams.set("category", selectedCategory);
+				}
+
+				searchParams.set("commercial_only", commercialOnly.toString());
+				const response = await fetch(
+					`/api/sounds/search?${searchParams.toString()}`,
+				);
+
+				if (!response.ok) {
+					setSearchError({ error: `Load more failed: ${response.status}` });
+					setLoadingMore({ loading: false });
+					return;
+				}
+				data = await response.json();
 			}
+
+			if (debouncedQuery.trim()) {
+				appendSearchResults({ results: data.results });
+			} else {
+				appendTopSounds({ results: data.results });
+			}
+
+			setCurrentPage({ page: nextPage });
+			setHasNextPage({ hasNext: !!data.next });
+			setTotalCount({ count: data.count || data.results?.length || 0 });
 		} catch (err) {
 			setSearchError({
 				error: err instanceof Error ? err.message : "Load more failed",
@@ -83,40 +112,53 @@ export function useSoundSearch({
 	};
 
 	useEffect(() => {
-		if (!query.trim()) {
+		if (!debouncedQuery.trim()) {
 			setSearchResults({ results: [] });
 			setSearchError({ error: null });
 			setLastSearchQuery({ query: "" });
 			return;
 		}
 
-		if (query === lastSearchQuery && searchResults.length > 0) {
+		if (debouncedQuery === lastSearchQuery && searchResults.length > 0) {
 			return;
 		}
 
 		let ignore = false;
 
-		const timeoutId = setTimeout(async () => {
+		const fetchSearch = async () => {
 			try {
 				setSearching({ searching: true });
 				setSearchError({ error: null });
 				resetPagination();
 
-				const response = await fetch(
-					`/api/sounds/search?q=${encodeURIComponent(query)}&type=effects&page=1&provider=${searchProvider}&category=${encodeURIComponent(selectedCategory)}`,
-				);
+				let data;
+				if (searchProvider === "myinstants") {
+					data = await fetchMyInstantsDirectly({
+						query: debouncedQuery.trim(),
+						category: selectedCategory,
+						page: 1,
+					});
+				} else {
+					const response = await fetch(
+						`/api/sounds/search?q=${encodeURIComponent(debouncedQuery)}&type=effects&page=1&provider=${searchProvider}&category=${encodeURIComponent(selectedCategory)}`,
+					);
 
-				if (!ignore) {
-					if (response.ok) {
-						const data = await response.json();
-						setSearchResults({ results: data.results });
-						setLastSearchQuery({ query: query });
-						setHasNextPage({ hasNext: !!data.next });
-						setTotalCount({ count: data.count });
-						setCurrentPage({ page: 1 });
-					} else {
+					if (ignore) return;
+
+					if (!response.ok) {
 						setSearchError({ error: `Search failed: ${response.status}` });
+						setSearching({ searching: false });
+						return;
 					}
+					data = await response.json();
+				}
+
+				if (!ignore && data) {
+					setSearchResults({ results: data.results });
+					setLastSearchQuery({ query: debouncedQuery });
+					setHasNextPage({ hasNext: !!data.next });
+					setTotalCount({ count: data.count || data.results?.length || 0 });
+					setCurrentPage({ page: 1 });
 				}
 			} catch (err) {
 				if (!ignore) {
@@ -129,14 +171,15 @@ export function useSoundSearch({
 					setSearching({ searching: false });
 				}
 			}
-		}, 300);
+		};
+
+		fetchSearch();
 
 		return () => {
-			clearTimeout(timeoutId);
 			ignore = true;
 		};
 	}, [
-		query,
+		debouncedQuery,
 		lastSearchQuery,
 		searchResults.length,
 		setSearchResults,

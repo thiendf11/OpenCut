@@ -34,6 +34,7 @@ import {
 	PlusSignIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { fetchMyInstantsDirectly } from "@/lib/sounds/myinstants-client";
 
 const CATEGORIES = [
 	{ id: "trending", label: "Trending" },
@@ -138,22 +139,32 @@ function SoundEffectsView() {
 					setError({ error: null });
 				}
 
-				const response = await fetch(
-					`/api/sounds/search?page_size=50&sort=downloads&provider=${searchProvider}&category=${encodeURIComponent(selectedCategory)}`,
-				);
+				let data;
+				if (searchProvider === "myinstants") {
+					data = await fetchMyInstantsDirectly({
+						category: selectedCategory,
+						page: 1,
+					});
+				} else {
+					const response = await fetch(
+						`/api/sounds/search?page_size=50&sort=downloads&provider=${searchProvider}&category=${encodeURIComponent(selectedCategory)}`,
+					);
 
-				if (!shouldIgnore) {
-					if (!response.ok) {
-						throw new Error(`Failed to fetch: ${response.status}`);
+					if (!shouldIgnore) {
+						if (!response.ok) {
+							throw new Error(`Failed to fetch: ${response.status}`);
+						}
+						data = await response.json();
 					}
+				}
 
-					const data = await response.json();
+				if (!shouldIgnore && data) {
 					setTopSoundEffects({ sounds: data.results });
 					setHasLoaded({ loaded: true });
 
 					setCurrentPage({ page: 1 });
 					setHasNextPage({ hasNext: !!data.next });
-					setTotalCount({ count: data.count });
+					setTotalCount({ count: data.count || data.results?.length || 0 });
 				}
 			} catch (error) {
 				if (!shouldIgnore) {
@@ -311,8 +322,8 @@ function SoundEffectsView() {
 				</div>
 			</div>
 
-			<div className="flex gap-1.5 overflow-x-auto py-1 select-none scrollbar-hidden">
-				{CATEGORIES.map((cat) => {
+			<div className="flex gap-1.5 overflow-x-auto py-1 select-none scrollbar-hidden h-9 shrink-0">
+				{CATEGORIES.map((cat) => {	
 					const isActive = selectedCategory === cat.id;
 					return (
 						<button
