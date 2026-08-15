@@ -157,6 +157,8 @@ export interface TextElement extends BaseTimelineElement {
 	fontSize: number;
 	fontFamily: string;
 	color: string;
+	strokeColor?: string;
+	strokeWidth?: number;
 	background: TextBackground;
 	textAlign: "left" | "center" | "right";
 	fontWeight: "normal" | "bold";

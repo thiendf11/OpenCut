@@ -110,6 +110,18 @@ export function renderTextToContext({
 
 	for (let index = 0; index < lineCount; index++) {
 		const lineY = index * lineHeightPx - block.visualCenterOffset;
+		if (
+			node.params.strokeWidth &&
+			node.params.strokeWidth > 0 &&
+			node.params.strokeColor &&
+			node.params.strokeColor !== "transparent"
+		) {
+			ctx.strokeStyle = node.params.strokeColor;
+			ctx.lineWidth = (node.params.strokeWidth / 10) * (scaledFontSize / 5);
+			ctx.lineJoin = "round";
+			ctx.miterLimit = 2;
+			ctx.strokeText(lines[index], 0, lineY);
+		}
 		ctx.fillText(lines[index], 0, lineY);
 		drawTextDecoration({
 			ctx,

@@ -46,6 +46,8 @@ interface RankingItem {
 	titleBgColor: string;
 	numberColor: string;
 	numberBgColor: string;
+	strokeColor?: string;
+	strokeWidth?: number;
 	platform: Platform;
 	videoUrl: string;
 	isLoadingVideo: boolean;
@@ -88,7 +90,13 @@ export function RankingsView() {
 
 	const [colorPickerOpen, setColorPickerOpen] = useState<{
 		id: string;
-		type: "number" | "numberBg" | "title" | "titleBg" | `default${1 | 2 | 3}`;
+		type:
+			| "number"
+			| "numberBg"
+			| "title"
+			| "titleBg"
+			| "stroke"
+			| `default${1 | 2 | 3}`;
 	} | null>(null);
 
 	// Default colors for top 3 rankings
@@ -326,6 +334,8 @@ export function RankingsView() {
 					content: globalHeader,
 					fontSize: 5,
 					color: "#FFFFFF",
+					strokeColor: "#000000",
+					strokeWidth: 5,
 					textAlign: "center",
 					fontWeight: "bold",
 					background: {
@@ -472,6 +482,8 @@ export function RankingsView() {
 			titleBgColor: "transparent",
 			numberColor: numberColor,
 			numberBgColor: "transparent",
+			strokeColor: "#000000",
+			strokeWidth: 5,
 			platform: "tiktok",
 			videoUrl: "",
 			isLoadingVideo: false,
@@ -496,6 +508,8 @@ export function RankingsView() {
 				name: `Ranking ${rankingNumber} Number`,
 				content: `${rankingNumber}.`,
 				color: newRanking.numberColor,
+				strokeColor: newRanking.strokeColor ?? "#000000",
+				strokeWidth: newRanking.strokeWidth ?? 5,
 				background: {
 					color: newRanking.numberBgColor,
 					enabled: newRanking.numberBgColor !== "transparent",
@@ -527,6 +541,8 @@ export function RankingsView() {
 				name: `Ranking ${rankingNumber} Title`,
 				content: " ", // Use space instead of empty string to ensure element is created
 				color: newRanking.titleColor,
+				strokeColor: newRanking.strokeColor ?? "#000000",
+				strokeWidth: newRanking.strokeWidth ?? 5,
 				background: {
 					color: newRanking.titleBgColor,
 					enabled: newRanking.titleBgColor !== "transparent",
@@ -673,10 +689,12 @@ export function RankingsView() {
 
 			const elementInfo = currentMap.get(id);
 			if (elementInfo) {
-				// Handle visual content / color updates
+				// Handle visual content / color / stroke updates
 				if (
 					updates.numberColor !== undefined ||
-					updates.numberBgColor !== undefined
+					updates.numberBgColor !== undefined ||
+					updates.strokeColor !== undefined ||
+					updates.strokeWidth !== undefined
 				) {
 					updatesList.push({
 						trackId: elementInfo.trackId,
@@ -684,6 +702,8 @@ export function RankingsView() {
 						patch: {
 							content: `${updatedRanking.rankingNumber}.`,
 							color: updatedRanking.numberColor,
+							strokeColor: updatedRanking.strokeColor ?? "#000000",
+							strokeWidth: updatedRanking.strokeWidth ?? 5,
 							background: {
 								color: updatedRanking.numberBgColor,
 								enabled: updatedRanking.numberBgColor !== "transparent",
@@ -695,7 +715,9 @@ export function RankingsView() {
 				if (
 					updates.title !== undefined ||
 					updates.titleColor !== undefined ||
-					updates.titleBgColor !== undefined
+					updates.titleBgColor !== undefined ||
+					updates.strokeColor !== undefined ||
+					updates.strokeWidth !== undefined
 				) {
 					updatesList.push({
 						trackId: elementInfo.titleTrackId,
@@ -703,6 +725,8 @@ export function RankingsView() {
 						patch: {
 							content: updatedRanking.title || " ",
 							color: updatedRanking.titleColor,
+							strokeColor: updatedRanking.strokeColor ?? "#000000",
+							strokeWidth: updatedRanking.strokeWidth ?? 5,
 							background: {
 								color: updatedRanking.titleBgColor,
 								enabled: updatedRanking.titleBgColor !== "transparent",
@@ -1067,6 +1091,8 @@ export function RankingsView() {
 				name: ranking.title || `Ranking ${ranking.rankingNumber}`,
 				content: ranking.title || `Ranking ${ranking.rankingNumber}`,
 				color: ranking.titleColor,
+				strokeColor: ranking.strokeColor ?? "#000000",
+				strokeWidth: ranking.strokeWidth ?? 5,
 				background: {
 					color: ranking.titleBgColor,
 					enabled: ranking.titleBgColor !== "transparent",
@@ -1411,6 +1437,68 @@ export function RankingsView() {
 														})
 													}
 												/>
+											</div>
+										</PopoverContent>
+									</Popover>
+
+									{/* Stroke color & width picker */}
+									<Popover
+										open={
+											colorPickerOpen?.id === ranking.id &&
+											colorPickerOpen?.type === "stroke"
+										}
+										onOpenChange={(open) =>
+											setColorPickerOpen(
+												open ? { id: ranking.id, type: "stroke" } : null,
+											)
+										}
+									>
+										<PopoverTrigger asChild>
+											<button
+												type="button"
+												className="w-5 h-5 rounded-full border border-primary hover:scale-110 transition-transform cursor-pointer flex items-center justify-center text-[9px] font-bold"
+												style={{
+													backgroundColor: ranking.strokeColor || "#000000",
+													color: "#ffffff",
+												}}
+												title="Stroke outline color"
+												aria-label="Change stroke color"
+											>
+												S
+											</button>
+										</PopoverTrigger>
+										<PopoverContent className="w-auto p-3" align="end">
+											<div className="space-y-2">
+												<span className="block text-xs font-medium">
+													Stroke Outline Color
+												</span>
+												<ColorPicker
+													value={(ranking.strokeColor || "#000000").replace(
+														"#",
+														"",
+													)}
+													onChange={(color) =>
+														handleUpdateRanking(ranking.id, {
+															strokeColor: `#${color}`,
+														})
+													}
+												/>
+												<div className="flex items-center justify-between text-xs pt-1 gap-2">
+													<span>Width: {ranking.strokeWidth ?? 5}px</span>
+													<input
+														type="range"
+														min="0"
+														max="15"
+														step="0.5"
+														value={ranking.strokeWidth ?? 5}
+														onChange={(e) =>
+															handleUpdateRanking(ranking.id, {
+																strokeWidth: Number.parseFloat(e.target.value),
+															})
+														}
+														className="w-24 h-1.5 bg-background rounded-lg appearance-none cursor-pointer accent-primary"
+													/>
+												</div>
 											</div>
 										</PopoverContent>
 									</Popover>
