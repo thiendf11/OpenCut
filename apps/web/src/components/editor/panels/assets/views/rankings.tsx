@@ -470,60 +470,21 @@ export function RankingsView() {
 
 				let videoUrl: string | null = null;
 
-				// 1. Try fetching directly from client via twitterpicker API (bypasses Vercel IP block)
 				try {
-					const res = await fetch(
-						`https://api.twitterpicker.com/tiktok/mediav2?id=${videoId}`,
+					const tikwmRes = await fetch(
+						`https://www.tikwm.com/api/?url=https://www.tiktok.com/video/${videoId}`,
 					);
-					if (res.ok) {
-						const data = await res.json();
-						if (data.video_no_watermark?.url) {
-							videoUrl = data.video_no_watermark.url;
+					if (tikwmRes.ok) {
+						const tikwmData = await tikwmRes.json();
+						if (tikwmData.code === 0 && tikwmData.data?.play) {
+							videoUrl = tikwmData.data.play;
 						}
 					}
 				} catch (e) {
 					console.warn(
-						"Client fetch via twitterpicker failed, trying TikWM fallback...",
+						"Client fetch via TikWM failed, trying backend route...",
 						e,
 					);
-				}
-
-				// 2. Fallback: Try TikWM API directly from client
-				if (!videoUrl) {
-					try {
-						const tikwmRes = await fetch(
-							`https://www.tikwm.com/api/?url=https://www.tiktok.com/video/${videoId}`,
-						);
-						if (tikwmRes.ok) {
-							const tikwmData = await tikwmRes.json();
-							if (tikwmData.code === 0 && tikwmData.data?.play) {
-								videoUrl = tikwmData.data.play;
-							}
-						}
-					} catch (e) {
-						console.warn(
-							"Client fetch via TikWM failed, trying backend route...",
-							e,
-						);
-					}
-				}
-
-				// 3. Fallback: Backend Next.js API route
-				if (!videoUrl) {
-					const response = await fetch("/api/fetch-tiktok", {
-						method: "POST",
-						headers: {
-							"Content-Type": "application/json",
-						},
-						body: JSON.stringify({ videoId }),
-					});
-
-					if (!response.ok) {
-						throw new Error(`API error: ${response.status}`);
-					}
-
-					const data = await response.json();
-					videoUrl = data.video_no_watermark?.url || data.url;
 				}
 
 				if (!videoUrl) {
