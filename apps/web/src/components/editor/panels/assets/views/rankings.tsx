@@ -48,6 +48,7 @@ interface RankingItem {
 	numberBgColor: string;
 	strokeColor?: string;
 	strokeWidth?: number;
+	titleStrokeWidth?: number;
 	platform: Platform;
 	videoUrl: string;
 	isLoadingVideo: boolean;
@@ -484,6 +485,7 @@ export function RankingsView() {
 			numberBgColor: "transparent",
 			strokeColor: "#000000",
 			strokeWidth: 13,
+			titleStrokeWidth: 8,
 			platform: "tiktok",
 			videoUrl: "",
 			isLoadingVideo: false,
@@ -542,7 +544,7 @@ export function RankingsView() {
 				content: " ", // Use space instead of empty string to ensure element is created
 				color: newRanking.titleColor,
 				strokeColor: newRanking.strokeColor ?? "#000000",
-				strokeWidth: 8,
+				strokeWidth: newRanking.titleStrokeWidth ?? 8,
 				background: {
 					color: newRanking.titleBgColor,
 					enabled: newRanking.titleBgColor !== "transparent",
@@ -717,7 +719,8 @@ export function RankingsView() {
 					updates.titleColor !== undefined ||
 					updates.titleBgColor !== undefined ||
 					updates.strokeColor !== undefined ||
-					updates.strokeWidth !== undefined
+					updates.strokeWidth !== undefined ||
+					updates.titleStrokeWidth !== undefined
 				) {
 					updatesList.push({
 						trackId: elementInfo.titleTrackId,
@@ -726,7 +729,10 @@ export function RankingsView() {
 							content: updatedRanking.title || " ",
 							color: updatedRanking.titleColor,
 							strokeColor: updatedRanking.strokeColor ?? "#000000",
-							strokeWidth: updatedRanking.strokeWidth ?? 13,
+							strokeWidth:
+								updatedRanking.titleStrokeWidth ??
+								updatedRanking.strokeWidth ??
+								8,
 							background: {
 								color: updatedRanking.titleBgColor,
 								enabled: updatedRanking.titleBgColor !== "transparent",
@@ -1092,7 +1098,7 @@ export function RankingsView() {
 				content: ranking.title || `Ranking ${ranking.rankingNumber}`,
 				color: ranking.titleColor,
 				strokeColor: ranking.strokeColor ?? "#000000",
-				strokeWidth: ranking.strokeWidth ?? 13,
+				strokeWidth: ranking.titleStrokeWidth ?? 8,
 				background: {
 					color: ranking.titleBgColor,
 					enabled: ranking.titleBgColor !== "transparent",
@@ -1484,16 +1490,38 @@ export function RankingsView() {
 													}
 												/>
 												<div className="flex items-center justify-between text-xs pt-1 gap-2">
-													<span>Width: {ranking.strokeWidth ?? 13}px</span>
+													<span>
+														Number Width: {ranking.strokeWidth ?? 13}px
+													</span>
 													<input
 														type="range"
 														min="0"
-														max="15"
+														max="20"
 														step="0.5"
 														value={ranking.strokeWidth ?? 13}
 														onChange={(e) =>
 															handleUpdateRanking(ranking.id, {
 																strokeWidth: Number.parseFloat(e.target.value),
+															})
+														}
+														className="w-24 h-1.5 bg-background rounded-lg appearance-none cursor-pointer accent-primary"
+													/>
+												</div>
+												<div className="flex items-center justify-between text-xs pt-1 gap-2">
+													<span>
+														Title Width: {ranking.titleStrokeWidth ?? 8}px
+													</span>
+													<input
+														type="range"
+														min="0"
+														max="20"
+														step="0.5"
+														value={ranking.titleStrokeWidth ?? 8}
+														onChange={(e) =>
+															handleUpdateRanking(ranking.id, {
+																titleStrokeWidth: Number.parseFloat(
+																	e.target.value,
+																),
 															})
 														}
 														className="w-24 h-1.5 bg-background rounded-lg appearance-none cursor-pointer accent-primary"
