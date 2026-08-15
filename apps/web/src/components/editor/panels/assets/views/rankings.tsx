@@ -57,8 +57,35 @@ export function RankingsView() {
 	const editor = useEditor();
 	const activeProject = useEditor((e) => e.project.getActive());
 
-	const [rankings, setRankings] = useState<RankingItem[]>([]);
-	const [itemCount, setItemCount] = useState<number | string>(5);
+	const activeProjectId = activeProject?.metadata.id;
+
+	const [rankings, setRankings] = useState<RankingItem[]>(() => {
+		if (typeof window !== "undefined" && activeProjectId) {
+			const saved = localStorage.getItem(
+				`opencut-rankings-items-${activeProjectId}`,
+			);
+			if (saved) {
+				try {
+					return JSON.parse(saved);
+				} catch (_e) {}
+			}
+		}
+		return [];
+	});
+
+	const [itemCount, setItemCount] = useState<number | string>(() => {
+		if (typeof window !== "undefined" && activeProjectId) {
+			const saved = localStorage.getItem(
+				`opencut-rankings-itemcount-${activeProjectId}`,
+			);
+			if (saved) {
+				const parsed = parseInt(saved, 10);
+				if (!isNaN(parsed)) return parsed;
+			}
+		}
+		return 5;
+	});
+
 	const [colorPickerOpen, setColorPickerOpen] = useState<{
 		id: string;
 		type: "number" | "numberBg" | "title" | "titleBg" | `default${1 | 2 | 3}`;
@@ -104,15 +131,174 @@ export function RankingsView() {
 				videoTrackId?: string;
 			}
 		>
-	>(new Map());
+	>(() => {
+		if (typeof window !== "undefined" && activeProjectId) {
+			const saved = localStorage.getItem(
+				`opencut-rankings-map-${activeProjectId}`,
+			);
+			if (saved) {
+				try {
+					return new Map(JSON.parse(saved));
+				} catch (_e) {}
+			}
+		}
+		return new Map();
+	});
 
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [dragOverId, setDragOverId] = useState<string | null>(null);
-	const [globalHeader, setGlobalHeader] = useState<string>("");
+	const [globalHeader, setGlobalHeader] = useState<string>(() => {
+		if (typeof window !== "undefined" && activeProjectId) {
+			const saved = localStorage.getItem(
+				`opencut-rankings-header-${activeProjectId}`,
+			);
+			if (saved !== null) return saved;
+		}
+		return "";
+	});
+
 	const [globalHeaderElementId, setGlobalHeaderElementId] = useState<{
 		trackId: string;
 		elementId: string;
-	} | null>(null);
+	} | null>(() => {
+		if (typeof window !== "undefined" && activeProjectId) {
+			const saved = localStorage.getItem(
+				`opencut-rankings-header-id-${activeProjectId}`,
+			);
+			if (saved) {
+				try {
+					return JSON.parse(saved);
+				} catch (_e) {}
+			}
+		}
+		return null;
+	});
+
+	// Hydrate and validate state from localStorage when activeProjectId or editor.timeline changes
+	useEffect(() => {
+		if (!activeProjectId || typeof window === "undefined") return;
+
+		const savedRankings = localStorage.getItem(
+			`opencut-rankings-items-${activeProjectId}`,
+		);
+		const savedMap = localStorage.getItem(
+			`opencut-rankings-map-${activeProjectId}`,
+		);
+		const savedHeader = localStorage.getItem(
+			`opencut-rankings-header-${activeProjectId}`,
+		);
+		const savedHeaderId = localStorage.getItem(
+			`opencut-rankings-header-id-${activeProjectId}`,
+		);
+		const savedItemCount = localStorage.getItem(
+			`opencut-rankings-itemcount-${activeProjectId}`,
+		);
+
+		if (savedRankings) {
+			try {
+				setRankings(JSON.parse(savedRankings));
+			} catch (_e) {}
+		}
+
+		if (savedMap) {
+			try {
+				const entries = JSON.parse(savedMap);
+				const map = new Map<string, any>(entries);
+
+				// Validate entries against current timeline elements
+				const validMap = new Map();
+				for (const [id, info] of map.entries()) {
+					const numTrack = editor.timeline.getTrackById({
+						trackId: info.trackId,
+					});
+					const numEl = numTrack?.elements.find(
+						(el) => el.id === info.numberId,
+					);
+
+					const titleTrack = editor.timeline.getTrackById({
+						trackId: info.titleTrackId,
+					});
+					const titleEl = titleTrack?.elements.find(
+						(el) => el.id === info.titleId,
+					);
+
+					if (numEl && titleEl) {
+						validMap.set(id, info);
+					}
+				}
+				setTimelineElementMap(validMap);
+			} catch (_e) {}
+		}
+
+		if (savedHeader !== null) {
+			setGlobalHeader(savedHeader);
+		}
+
+		if (savedHeaderId) {
+			try {
+				const info = JSON.parse(savedHeaderId);
+				const track = editor.timeline.getTrackById({ trackId: info.trackId });
+				const el = track?.elements.find((e) => e.id === info.elementId);
+				if (el) {
+					setGlobalHeaderElementId(info);
+				} else {
+					setGlobalHeaderElementId(null);
+				}
+			} catch (_e) {}
+		}
+
+		if (savedItemCount) {
+			const parsed = parseInt(savedItemCount, 10);
+			if (!isNaN(parsed)) setItemCount(parsed);
+		}
+	}, [activeProjectId, editor.timeline]);
+
+	// Persist state changes to localStorage per project
+	useEffect(() => {
+		if (typeof window === "undefined" || !activeProjectId) return;
+		localStorage.setItem(
+			`opencut-rankings-items-${activeProjectId}`,
+			JSON.stringify(rankings),
+		);
+	}, [rankings, activeProjectId]);
+
+	useEffect(() => {
+		if (typeof window === "undefined" || !activeProjectId) return;
+		localStorage.setItem(
+			`opencut-rankings-map-${activeProjectId}`,
+			JSON.stringify(Array.from(timelineElementMap.entries())),
+		);
+	}, [timelineElementMap, activeProjectId]);
+
+	useEffect(() => {
+		if (typeof window === "undefined" || !activeProjectId) return;
+		localStorage.setItem(
+			`opencut-rankings-header-${activeProjectId}`,
+			globalHeader,
+		);
+	}, [globalHeader, activeProjectId]);
+
+	useEffect(() => {
+		if (typeof window === "undefined" || !activeProjectId) return;
+		if (globalHeaderElementId) {
+			localStorage.setItem(
+				`opencut-rankings-header-id-${activeProjectId}`,
+				JSON.stringify(globalHeaderElementId),
+			);
+		} else {
+			localStorage.removeItem(
+				`opencut-rankings-header-id-${activeProjectId}`,
+			);
+		}
+	}, [globalHeaderElementId, activeProjectId]);
+
+	useEffect(() => {
+		if (typeof window === "undefined" || !activeProjectId) return;
+		localStorage.setItem(
+			`opencut-rankings-itemcount-${activeProjectId}`,
+			String(itemCount),
+		);
+	}, [itemCount, activeProjectId]);
 
 	// Create or update global header element on timeline
 	useEffect(() => {
