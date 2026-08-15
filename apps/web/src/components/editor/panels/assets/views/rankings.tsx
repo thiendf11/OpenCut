@@ -542,7 +542,7 @@ export function RankingsView() {
 				content: " ", // Use space instead of empty string to ensure element is created
 				color: newRanking.titleColor,
 				strokeColor: newRanking.strokeColor ?? "#000000",
-				strokeWidth: newRanking.strokeWidth ?? 5,
+				strokeWidth: newRanking.strokeWidth ?? 3,
 				background: {
 					color: newRanking.titleBgColor,
 					enabled: newRanking.titleBgColor !== "transparent",
