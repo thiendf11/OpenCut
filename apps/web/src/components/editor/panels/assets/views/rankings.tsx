@@ -483,7 +483,7 @@ export function RankingsView() {
 			numberColor: numberColor,
 			numberBgColor: "transparent",
 			strokeColor: "#000000",
-			strokeWidth: 5,
+			strokeWidth: 13,
 			platform: "tiktok",
 			videoUrl: "",
 			isLoadingVideo: false,
@@ -542,7 +542,7 @@ export function RankingsView() {
 				content: " ", // Use space instead of empty string to ensure element is created
 				color: newRanking.titleColor,
 				strokeColor: newRanking.strokeColor ?? "#000000",
-				strokeWidth: newRanking.strokeWidth ?? 8,
+				strokeWidth: 8,
 				background: {
 					color: newRanking.titleBgColor,
 					enabled: newRanking.titleBgColor !== "transparent",
