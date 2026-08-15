@@ -787,6 +787,111 @@ export function RankingsView() {
 		}
 	};
 
+	const processVideoFile = async (id: string, file: File) => {
+		if (!activeProject) {
+			console.error("No active project");
+			return;
+		}
+		if (!file.type.startsWith("video/")) {
+			console.error("Only video files are allowed");
+			return;
+		}
+
+		const ranking = rankings.find((r) => r.id === id);
+		if (!ranking) return;
+
+		const index = rankings.findIndex((r) => r.id === id);
+		const startTimeSeconds = rankings
+			.slice(0, index)
+			.reduce((acc, r) => acc + r.duration, 0);
+		const startTimeTicks = Math.round(startTimeSeconds * TICKS_PER_SECOND);
+
+		console.log("Processing video file...", file.name);
+
+		const processedAssets = await processMediaAssets({
+			files: [file],
+			onProgress: (p) => console.log(`Processing: ${p.progress}%`),
+		});
+
+		if (processedAssets.length === 0) {
+			console.error("Failed to process video");
+			return;
+		}
+
+		const asset = processedAssets[0];
+		const addedAsset = await editor.media.addMediaAsset({
+			projectId: activeProject.metadata.id,
+			asset,
+		});
+
+		if (!addedAsset) {
+			console.error("Failed to add asset to library");
+			return;
+		}
+
+		console.log("Added to media library:", addedAsset.id);
+
+		const durationTicks = Math.round(
+			(addedAsset.duration || 30) * TICKS_PER_SECOND,
+		);
+		const element = buildElementFromMedia({
+			mediaId: addedAsset.id,
+			mediaType: addedAsset.type,
+			name: addedAsset.name,
+			duration: durationTicks,
+			startTime: startTimeTicks,
+		});
+
+		const cmd = new InsertElementCommand({
+			element,
+			placement: { mode: "auto", trackType: "video" },
+		});
+		editor.command.execute({ command: cmd });
+		const videoId = cmd.getElementId();
+		const videoTrackId = cmd.getTrackId();
+
+		if (videoId && videoTrackId) {
+			let updatedMap = timelineElementMap;
+			setTimelineElementMap((prev) => {
+				const newMap = new Map(prev);
+				const existing = newMap.get(id);
+				if (existing) {
+					newMap.set(id, {
+						...existing,
+						videoId,
+						videoTrackId,
+					});
+					console.log(`Linked video to ranking item ${id}`);
+				}
+				updatedMap = newMap;
+				return newMap;
+			});
+
+			const videoDurationSeconds = addedAsset.duration || 30;
+			handleUpdateRanking(
+				id,
+				{
+					maxDuration: videoDurationSeconds,
+					duration: videoDurationSeconds,
+				},
+				updatedMap,
+			);
+
+			const finalDurationTicks = Math.round(
+				videoDurationSeconds * TICKS_PER_SECOND,
+			);
+			editor.timeline.updateElements({
+				updates: [
+					{
+						trackId: videoTrackId,
+						elementId: videoId,
+						patch: { duration: finalDurationTicks },
+					},
+				],
+			});
+		}
+	};
+
 	const handleFetchVideo = async (id: string) => {
 		const ranking = rankings.find((r) => r.id === id);
 		if (!ranking || !ranking.videoUrl.trim()) return;
@@ -830,28 +935,31 @@ export function RankingsView() {
 
 				console.log(`Got video URL: ${videoUrl}`);
 
-				const index = rankings.findIndex((r) => r.id === id);
-
 				// Download video as blob first to avoid CORS issues
 				console.log("Downloading video...");
 				const videoResponse = await fetch(videoUrl);
 				const videoBlob = await videoResponse.blob();
 
-				// Create object URL from blob
-				const blobUrl = URL.createObjectURL(videoBlob);
+				const videoFile = new File(
+					[videoBlob],
+					`ranking-${ranking.rankingNumber}-${ranking.title || "video"}.mp4`,
+					{ type: videoBlob.type || "video/mp4" },
+				);
 
-				// Download file from blob URL
+				// Create object URL from blob for browser download
+				const blobUrl = URL.createObjectURL(videoBlob);
 				const link = document.createElement("a");
 				link.href = blobUrl;
-				link.download = `ranking-${ranking.rankingNumber}-${ranking.title || "video"}.mp4`;
+				link.download = videoFile.name;
 				document.body.appendChild(link);
 				link.click();
 				document.body.removeChild(link);
-
-				// Clean up blob URL after a delay
 				setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
 
-				console.log("Video downloaded successfully!");
+				// Automatically add video to media library and timeline
+				await processVideoFile(id, videoFile);
+
+				console.log("Video downloaded and added to timeline successfully!");
 				handleUpdateRanking(id, { isLoadingVideo: false });
 			} else {
 				console.log(`Platform ${ranking.platform} not implemented yet`);
@@ -865,119 +973,13 @@ export function RankingsView() {
 
 	const handleDropVideo = async (id: string, files: FileList) => {
 		if (!files || files.length === 0) return;
-		if (!activeProject) {
-			console.error("No active project");
-			return;
-		}
-
-		const file = files[0];
-		if (!file.type.startsWith("video/")) {
-			console.error("Only video files are allowed");
-			return;
-		}
-
 		handleUpdateRanking(id, { isLoadingVideo: true });
 
 		try {
-			const ranking = rankings.find((r) => r.id === id);
-			if (!ranking) return;
-
-			const index = rankings.findIndex((r) => r.id === id);
-			const startTimeSeconds = rankings
-				.slice(0, index)
-				.reduce((acc, r) => acc + r.duration, 0);
-			const startTimeTicks = Math.round(startTimeSeconds * TICKS_PER_SECOND);
-
-			console.log("Processing dropped video...", file.name);
-
-			const processedAssets = await processMediaAssets({
-				files: [file],
-				onProgress: (p) => console.log(`Processing: ${p.progress}%`),
-			});
-
-			if (processedAssets.length === 0) {
-				console.error("Failed to process video");
-				handleUpdateRanking(id, { isLoadingVideo: false });
-				return;
-			}
-
-			const asset = processedAssets[0];
-			const addedAsset = await editor.media.addMediaAsset({
-				projectId: activeProject.metadata.id,
-				asset,
-			});
-
-			if (!addedAsset) {
-				console.error("Failed to add asset to library");
-				handleUpdateRanking(id, { isLoadingVideo: false });
-				return;
-			}
-
-			console.log("Added to media library:", addedAsset.id);
-
-			const durationTicks = Math.round(
-				(addedAsset.duration || 30) * TICKS_PER_SECOND,
-			);
-			const element = buildElementFromMedia({
-				mediaId: addedAsset.id,
-				mediaType: addedAsset.type,
-				name: addedAsset.name,
-				duration: durationTicks,
-				startTime: startTimeTicks,
-			});
-
-			const cmd = new InsertElementCommand({
-				element,
-				placement: { mode: "auto", trackType: "video" },
-			});
-			editor.command.execute({ command: cmd });
-			const videoId = cmd.getElementId();
-			const videoTrackId = cmd.getTrackId();
-
-			if (videoId && videoTrackId) {
-				let updatedMap = timelineElementMap;
-				setTimelineElementMap((prev) => {
-					const newMap = new Map(prev);
-					const existing = newMap.get(id);
-					if (existing) {
-						newMap.set(id, {
-							...existing,
-							videoId,
-							videoTrackId,
-						});
-						console.log(`Linked video to ranking item ${id}`);
-					}
-					updatedMap = newMap;
-					return newMap;
-				});
-
-				const videoDurationSeconds = addedAsset.duration || 30;
-				handleUpdateRanking(
-					id,
-					{
-						maxDuration: videoDurationSeconds,
-						duration: videoDurationSeconds,
-					},
-					updatedMap,
-				);
-
-				const finalDurationTicks = Math.round(
-					videoDurationSeconds * TICKS_PER_SECOND,
-				);
-				editor.timeline.updateElements({
-					updates: [
-						{
-							trackId: videoTrackId,
-							elementId: videoId,
-							patch: { duration: finalDurationTicks },
-						},
-					],
-				});
-			}
-
-			handleUpdateRanking(id, { isLoadingVideo: false });
+			await processVideoFile(id, files[0]);
 		} catch (error) {
 			console.error("Error processing dropped video:", error);
+		} finally {
 			handleUpdateRanking(id, { isLoadingVideo: false });
 		}
 	};
