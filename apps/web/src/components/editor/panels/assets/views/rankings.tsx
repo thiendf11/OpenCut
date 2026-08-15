@@ -719,7 +719,7 @@ export function RankingsView() {
 					r.id === id ? updatedRanking : r,
 				);
 
-				updatedRankings.forEach((r, _idx) => {
+				updatedRankings.forEach((r) => {
 					const rElementInfo = currentMap.get(r.id);
 					if (rElementInfo) {
 						const accumulatedTimeTicks = Math.round(
@@ -781,7 +781,7 @@ export function RankingsView() {
 			return prev.map((r) => (r.id === id ? updatedRanking : r));
 		});
 
-		// Apply timeline updates
+		// Apply timeline updates synchronously after setRankings callback completes
 		if (updatesList.length > 0) {
 			editor.timeline.updateElements({ updates: updatesList });
 		}
@@ -851,44 +851,100 @@ export function RankingsView() {
 		const videoTrackId = cmd.getTrackId();
 
 		if (videoId && videoTrackId) {
-			let updatedMap = timelineElementMap;
-			setTimelineElementMap((prev) => {
-				const newMap = new Map(prev);
-				const existing = newMap.get(id);
-				if (existing) {
-					newMap.set(id, {
-						...existing,
-						videoId,
-						videoTrackId,
-					});
-					console.log(`Linked video to ranking item ${id}`);
-				}
-				updatedMap = newMap;
-				return newMap;
-			});
+			const updatedMap = new Map(timelineElementMap);
+			const existing = updatedMap.get(id);
+			if (existing) {
+				updatedMap.set(id, {
+					...existing,
+					videoId,
+					videoTrackId,
+				});
+				console.log(`Linked video to ranking item ${id}`);
+			}
+			setTimelineElementMap(updatedMap);
 
 			const videoDurationSeconds = addedAsset.duration || 30;
-			handleUpdateRanking(
-				id,
-				{
-					maxDuration: videoDurationSeconds,
-					duration: videoDurationSeconds,
-				},
-				updatedMap,
+
+			// Update ranking duration and calculate start times for subsequent items synchronously
+			let accumulatedTimeSeconds = 0;
+			const updatedRankings = rankings.map((r) =>
+				r.id === id
+					? {
+							...r,
+							maxDuration: videoDurationSeconds,
+							duration: videoDurationSeconds,
+						}
+					: r,
 			);
 
-			const finalDurationTicks = Math.round(
-				videoDurationSeconds * TICKS_PER_SECOND,
-			);
-			editor.timeline.updateElements({
-				updates: [
-					{
-						trackId: videoTrackId,
-						elementId: videoId,
-						patch: { duration: finalDurationTicks },
-					},
-				],
+			setRankings(updatedRankings);
+
+			const updatesList: Array<{
+				trackId: string;
+				elementId: string;
+				patch: Partial<import("@/lib/timeline").TimelineElement>;
+			}> = [];
+
+			updatedRankings.forEach((r) => {
+				const rElementInfo = updatedMap.get(r.id);
+				if (rElementInfo) {
+					const accumulatedTimeTicks = Math.round(
+						accumulatedTimeSeconds * TICKS_PER_SECOND,
+					);
+
+					// Check/update title start time
+					const titleTrack = editor.timeline.getTrackById({
+						trackId: rElementInfo.titleTrackId,
+					});
+					const titleElement = titleTrack?.elements.find(
+						(el) => el.id === rElementInfo.titleId,
+					);
+					if (
+						titleElement &&
+						titleElement.startTime !== accumulatedTimeTicks
+					) {
+						updatesList.push({
+							trackId: rElementInfo.titleTrackId,
+							elementId: rElementInfo.titleId,
+							patch: { startTime: accumulatedTimeTicks },
+						});
+					}
+
+					// Check/update video start time & duration
+					if (rElementInfo.videoId && rElementInfo.videoTrackId) {
+						const videoTrack = editor.timeline.getTrackById({
+							trackId: rElementInfo.videoTrackId,
+						});
+						const videoElement = videoTrack?.elements.find(
+							(el) => el.id === rElementInfo.videoId,
+						);
+						if (videoElement) {
+							const patch: Partial<import("@/lib/timeline").TimelineElement> = {};
+							if (videoElement.startTime !== accumulatedTimeTicks) {
+								patch.startTime = accumulatedTimeTicks;
+							}
+							const targetDurationTicks = Math.round(
+								r.duration * TICKS_PER_SECOND,
+							);
+							if (videoElement.duration !== targetDurationTicks) {
+								patch.duration = targetDurationTicks;
+							}
+							if (Object.keys(patch).length > 0) {
+								updatesList.push({
+									trackId: rElementInfo.videoTrackId,
+									elementId: rElementInfo.videoId,
+									patch,
+								});
+							}
+						}
+					}
+				}
+				accumulatedTimeSeconds += r.duration;
 			});
+
+			if (updatesList.length > 0) {
+				editor.timeline.updateElements({ updates: updatesList });
+			}
 		}
 	};
 
