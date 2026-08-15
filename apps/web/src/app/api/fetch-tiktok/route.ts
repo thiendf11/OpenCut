@@ -35,15 +35,40 @@ export async function POST(request: NextRequest) {
 			Object.fromEntries(response.headers.entries()),
 		);
 
-		if (!response.ok) {
+		let data: Record<string, unknown> | null = null;
+
+		if (response.ok) {
+			data = await response.json();
+		} else {
 			const errorText = await response.text();
-			console.error("API error response:", errorText);
-			throw new Error(`API error: ${response.status} - ${errorText}`);
+			console.warn(`twitterpicker returned ${response.status}: ${errorText.slice(0, 100)}... Attempting TikWM fallback.`);
+			
+			// Fallback to TikWM API
+			const tikwmUrl = `https://www.tikwm.com/api/?url=https://www.tiktok.com/video/${videoId}`;
+			const tikwmRes = await fetch(tikwmUrl, {
+				headers: {
+					"User-Agent":
+						"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+				},
+			});
+
+			if (tikwmRes.ok) {
+				const tikwmData = await tikwmRes.json();
+				if (tikwmData.code === 0 && tikwmData.data?.play) {
+					data = {
+						video_no_watermark: {
+							url: tikwmData.data.play,
+						},
+						cover: tikwmData.data.cover,
+						title: tikwmData.data.title,
+					};
+				}
+			}
 		}
 
-		const data = await response.json();
-		console.log("API response data keys:", Object.keys(data));
-		console.log("Video URL present:", !!data.video_no_watermark?.url);
+		if (!data || (!data.video_no_watermark && !data.url)) {
+			throw new Error(`Failed to fetch TikTok video from all sources (Primary HTTP ${response.status})`);
+		}
 
 		return NextResponse.json(data);
 	} catch (error) {
