@@ -40,6 +40,7 @@ type Platform = "tiktok" | "youtube" | "instagram" | "twitter";
 
 interface RankingItem {
 	id: string;
+	rankingNumber: number;
 	title: string;
 	titleColor: string;
 	titleBgColor: string;
@@ -57,6 +58,7 @@ export function RankingsView() {
 	const activeProject = useEditor((e) => e.project.getActive());
 
 	const [rankings, setRankings] = useState<RankingItem[]>([]);
+	const [itemCount, setItemCount] = useState<number | string>(5);
 	const [colorPickerOpen, setColorPickerOpen] = useState<{
 		id: string;
 		type: "number" | "numberBg" | "title" | "titleBg" | `default${1 | 2 | 3}`;
@@ -140,11 +142,15 @@ export function RankingsView() {
 					color: "#FFFFFF",
 					textAlign: "center",
 					fontWeight: "bold",
+					background: {
+						color: "transparent",
+						enabled: false,
+					},
 					duration: Math.round(120 * TICKS_PER_SECOND),
 					transform: {
 						scaleX: 1,
 						scaleY: 1,
-						position: { x: 0, y: -800 },
+						position: { x: 0, y: -850 },
 						rotate: 0,
 					},
 				},
@@ -165,13 +171,116 @@ export function RankingsView() {
 		}
 	}, [globalHeader, globalHeaderElementId, editor]);
 
+	const handleItemCountChange = (val: string) => {
+		if (val === "") {
+			setItemCount("");
+			return;
+		}
+		const num = Math.max(1, parseInt(val, 10) || 1);
+		setItemCount(num);
+
+		if (rankings.length > 0) {
+			const totalCount = Math.max(num, rankings.length);
+			const updatedRankings = rankings.map((r, idx) => {
+				const rNum = totalCount - idx;
+				return {
+					...r,
+					rankingNumber: rNum,
+					numberColor: rNum <= 3 ? defaultColors[rNum - 1] : r.numberColor,
+				};
+			});
+			setRankings(updatedRankings);
+
+			const updatesList: Array<{
+				trackId: string;
+				elementId: string;
+				patch: Partial<import("@/lib/timeline").TimelineElement>;
+			}> = [];
+
+			updatedRankings.forEach((r) => {
+				const info = timelineElementMap.get(r.id);
+				if (info?.numberId && info?.trackId) {
+					const yPosition = -600 + (r.rankingNumber - 1) * 150;
+					updatesList.push({
+						trackId: info.trackId,
+						elementId: info.numberId,
+						patch: {
+							content: `${r.rankingNumber}.`,
+							color: r.numberColor,
+							transform: {
+								scaleX: 1,
+								scaleY: 1,
+								position: { x: -400, y: yPosition },
+								rotate: 0,
+							},
+						},
+					});
+				}
+			});
+
+			if (updatesList.length > 0) {
+				editor.timeline.updateElements({ updates: updatesList });
+			}
+		}
+	};
+
 	const handleAddRanking = () => {
-		const rankingNumber = rankings.length + 1;
+		const targetTotal =
+			typeof itemCount === "number" ? itemCount : parseInt(itemCount, 10) || 5;
+
+		const index = rankings.length;
+		const totalCount = Math.max(targetTotal, index + 1);
+
+		if (totalCount > targetTotal) {
+			setItemCount(totalCount);
+		}
+
+		let updatedExistingRankings = rankings;
+		const existingUpdatesList: Array<{
+			trackId: string;
+			elementId: string;
+			patch: Partial<import("@/lib/timeline").TimelineElement>;
+		}> = [];
+
+		if (totalCount > targetTotal) {
+			updatedExistingRankings = rankings.map((r, idx) => {
+				const rNum = totalCount - idx;
+				return {
+					...r,
+					rankingNumber: rNum,
+					numberColor: rNum <= 3 ? defaultColors[rNum - 1] : r.numberColor,
+				};
+			});
+
+			updatedExistingRankings.forEach((r) => {
+				const info = timelineElementMap.get(r.id);
+				if (info?.numberId && info?.trackId) {
+					const yPosition = -600 + (r.rankingNumber - 1) * 150;
+					existingUpdatesList.push({
+						trackId: info.trackId,
+						elementId: info.numberId,
+						patch: {
+							content: `${r.rankingNumber}.`,
+							color: r.numberColor,
+							transform: {
+								scaleX: 1,
+								scaleY: 1,
+								position: { x: -400, y: yPosition },
+								rotate: 0,
+							},
+						},
+					});
+				}
+			});
+		}
+
+		const rankingNumber = totalCount - index;
 		const numberColor =
 			rankingNumber <= 3 ? defaultColors[rankingNumber - 1] : "#FFFFFF";
 
 		const newRanking: RankingItem = {
 			id: `ranking-${Date.now()}`,
+			rankingNumber,
 			title: "",
 			titleColor: "#FFFFFF",
 			titleBgColor: "transparent",
@@ -183,13 +292,11 @@ export function RankingsView() {
 			duration: 5, // default 5 seconds
 		};
 
-		setRankings([...rankings, newRanking]);
-
-		// Calculate Y position: start at -300, then add 80px for each subsequent ranking
+		// Calculate Y position: start at -600, then add 150px for each subsequent ranking
 		const yPosition = -600 + (rankingNumber - 1) * 150;
 
 		// Calculate title start time (in ticks): sum of all previous title durations
-		const titleStartTimeSeconds = rankings.reduce(
+		const titleStartTimeSeconds = updatedExistingRankings.reduce(
 			(acc, r) => acc + r.duration,
 			0,
 		);
@@ -244,7 +351,7 @@ export function RankingsView() {
 				transform: {
 					scaleX: 1,
 					scaleY: 1,
-					position: { x: -370, y: yPosition },
+					position: { x: -360, y: yPosition },
 					rotate: 0,
 				},
 			},
@@ -268,14 +375,56 @@ export function RankingsView() {
 					titleId,
 					titleTrackId,
 				});
-				console.log(`✓ Mapped ranking ${newRanking.id}`);
 				return newMap;
 			});
+		}
+
+		setRankings([...updatedExistingRankings, newRanking]);
+
+		if (existingUpdatesList.length > 0) {
+			editor.timeline.updateElements({ updates: existingUpdatesList });
 		}
 	};
 
 	const handleDeleteRanking = (id: string) => {
-		setRankings(rankings.filter((r) => r.id !== id));
+		const newRankings = rankings.filter((r) => r.id !== id);
+		const newTotal = newRankings.length;
+		const updatedRankings = newRankings.map((r, idx) => {
+			const rNum = newTotal - idx;
+			return {
+				...r,
+				rankingNumber: rNum,
+				numberColor: rNum <= 3 ? defaultColors[rNum - 1] : r.numberColor,
+			};
+		});
+		setRankings(updatedRankings);
+
+		const updatesList: Array<{
+			trackId: string;
+			elementId: string;
+			patch: Partial<import("@/lib/timeline").TimelineElement>;
+		}> = [];
+
+		updatedRankings.forEach((r) => {
+			const info = timelineElementMap.get(r.id);
+			if (info?.numberId && info?.trackId) {
+				const yPosition = -600 + (r.rankingNumber - 1) * 150;
+				updatesList.push({
+					trackId: info.trackId,
+					elementId: info.numberId,
+					patch: {
+						content: `${r.rankingNumber}.`,
+						color: r.numberColor,
+						transform: {
+							scaleX: 1,
+							scaleY: 1,
+							position: { x: -400, y: yPosition },
+							rotate: 0,
+						},
+					},
+				});
+			}
+		});
 
 		const elementInfo = timelineElementMap.get(id);
 		if (elementInfo) {
@@ -301,6 +450,10 @@ export function RankingsView() {
 			if (elementsToDelete.length > 0) {
 				editor.timeline.deleteElements({ elements: elementsToDelete });
 			}
+		}
+
+		if (updatesList.length > 0) {
+			editor.timeline.updateElements({ updates: updatesList });
 		}
 	};
 
@@ -331,8 +484,6 @@ export function RankingsView() {
 			if (!currentRanking) return prev;
 
 			const updatedRanking = { ...currentRanking, ...updates };
-			const index = prev.findIndex((r) => r.id === id);
-			const rankingNumber = index + 1;
 
 			const elementInfo = currentMap.get(id);
 			if (elementInfo) {
@@ -345,7 +496,7 @@ export function RankingsView() {
 						trackId: elementInfo.trackId,
 						elementId: elementInfo.numberId,
 						patch: {
-							content: `${rankingNumber}.`,
+							content: `${updatedRanking.rankingNumber}.`,
 							color: updatedRanking.numberColor,
 							background: {
 								color: updatedRanking.numberBgColor,
@@ -506,7 +657,7 @@ export function RankingsView() {
 				// Download file from blob URL
 				const link = document.createElement("a");
 				link.href = blobUrl;
-				link.download = `ranking-${index + 1}-${ranking.title || "video"}.mp4`;
+				link.download = `ranking-${ranking.rankingNumber}-${ranking.title || "video"}.mp4`;
 				document.body.appendChild(link);
 				link.click();
 				document.body.removeChild(link);
@@ -666,11 +817,11 @@ export function RankingsView() {
 		handleDropVideo(id, files);
 	};
 
-	const handleAddTitleToTimeline = (ranking: RankingItem, index: number) => {
+	const handleAddTitleToTimeline = (ranking: RankingItem) => {
 		const element = buildTextElement({
 			raw: {
-				name: ranking.title || `Ranking ${index + 1}`,
-				content: ranking.title || `Ranking ${index + 1}`,
+				name: ranking.title || `Ranking ${ranking.rankingNumber}`,
+				content: ranking.title || `Ranking ${ranking.rankingNumber}`,
 				color: ranking.titleColor,
 				background: {
 					color: ranking.titleBgColor,
@@ -757,15 +908,30 @@ export function RankingsView() {
 					</div>
 				</div>
 
-				{/* Add new ranking button */}
-				<Button
-					onClick={handleAddRanking}
-					className="w-full flex items-center justify-center gap-1.5"
-					size="sm"
-				>
-					<HugeiconsIcon icon={PlusSignIcon} size={16} />
-					Add Ranking Item
-				</Button>
+				{/* Add new ranking button with quantity input */}
+				<div className="space-y-1">
+					<span className="block text-xs font-medium text-muted-foreground">
+						Number of Items
+					</span>
+					<div className="flex gap-2 items-center">
+						<Input
+							type="number"
+							min={1}
+							max={50}
+							value={itemCount}
+							onChange={(e) => handleItemCountChange(e.target.value)}
+							className="w-20 h-9 text-sm bg-background font-medium"
+						/>
+						<Button
+							onClick={handleAddRanking}
+							className="flex-1 flex items-center justify-center gap-1.5 h-9"
+							size="sm"
+						>
+							<HugeiconsIcon icon={PlusSignIcon} size={16} />
+							Add Ranking Item
+						</Button>
+					</div>
+				</div>
 
 				{/* Rankings list */}
 				{rankings.length > 0 && (
@@ -793,7 +959,7 @@ export function RankingsView() {
 												backgroundColor: ranking.numberBgColor,
 											}}
 										>
-											{index + 1}
+											{ranking.rankingNumber}
 										</span>
 
 										{/* Number color picker */}
@@ -1010,7 +1176,7 @@ export function RankingsView() {
 										variant="outline"
 										size="icon"
 										className="h-7 w-7"
-										onClick={() => handleAddTitleToTimeline(ranking, index)}
+										onClick={() => handleAddTitleToTimeline(ranking)}
 										disabled={!ranking.title.trim()}
 									>
 										<HugeiconsIcon icon={PlusSignIcon} size={14} />
