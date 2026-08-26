@@ -183,6 +183,33 @@ export function RankingsView() {
 		return null;
 	});
 
+	const [globalSubheader, setGlobalSubheader] = useState<string>(() => {
+		if (typeof window !== "undefined" && activeProjectId) {
+			const saved = localStorage.getItem(
+				`opencut-rankings-subheader-${activeProjectId}`,
+			);
+			if (saved !== null) return saved;
+		}
+		return "";
+	});
+
+	const [globalSubheaderElementId, setGlobalSubheaderElementId] = useState<{
+		trackId: string;
+		elementId: string;
+	} | null>(() => {
+		if (typeof window !== "undefined" && activeProjectId) {
+			const saved = localStorage.getItem(
+				`opencut-rankings-subheader-id-${activeProjectId}`,
+			);
+			if (saved) {
+				try {
+					return JSON.parse(saved);
+				} catch (_e) {}
+			}
+		}
+		return null;
+	});
+
 	// Hydrate and validate state from localStorage when activeProjectId or editor.timeline changes
 	useEffect(() => {
 		if (!activeProjectId || typeof window === "undefined") return;
@@ -198,6 +225,12 @@ export function RankingsView() {
 		);
 		const savedHeaderId = localStorage.getItem(
 			`opencut-rankings-header-id-${activeProjectId}`,
+		);
+		const savedSubheader = localStorage.getItem(
+			`opencut-rankings-subheader-${activeProjectId}`,
+		);
+		const savedSubheaderId = localStorage.getItem(
+			`opencut-rankings-subheader-id-${activeProjectId}`,
 		);
 		const savedItemCount = localStorage.getItem(
 			`opencut-rankings-itemcount-${activeProjectId}`,
@@ -256,6 +289,23 @@ export function RankingsView() {
 			} catch (_e) {}
 		}
 
+		if (savedSubheader !== null) {
+			setGlobalSubheader(savedSubheader);
+		}
+
+		if (savedSubheaderId) {
+			try {
+				const info = JSON.parse(savedSubheaderId);
+				const track = editor.timeline.getTrackById({ trackId: info.trackId });
+				const el = track?.elements.find((e) => e.id === info.elementId);
+				if (el) {
+					setGlobalSubheaderElementId(info);
+				} else {
+					setGlobalSubheaderElementId(null);
+				}
+			} catch (_e) {}
+		}
+
 		if (savedItemCount) {
 			const parsed = parseInt(savedItemCount, 10);
 			if (!isNaN(parsed)) setItemCount(parsed);
@@ -304,6 +354,28 @@ export function RankingsView() {
 	useEffect(() => {
 		if (typeof window === "undefined" || !activeProjectId) return;
 		localStorage.setItem(
+			`opencut-rankings-subheader-${activeProjectId}`,
+			globalSubheader,
+		);
+	}, [globalSubheader, activeProjectId]);
+
+	useEffect(() => {
+		if (typeof window === "undefined" || !activeProjectId) return;
+		if (globalSubheaderElementId) {
+			localStorage.setItem(
+				`opencut-rankings-subheader-id-${activeProjectId}`,
+				JSON.stringify(globalSubheaderElementId),
+			);
+		} else {
+			localStorage.removeItem(
+				`opencut-rankings-subheader-id-${activeProjectId}`,
+			);
+		}
+	}, [globalSubheaderElementId, activeProjectId]);
+
+	useEffect(() => {
+		if (typeof window === "undefined" || !activeProjectId) return;
+		localStorage.setItem(
 			`opencut-rankings-itemcount-${activeProjectId}`,
 			String(itemCount),
 		);
@@ -336,7 +408,7 @@ export function RankingsView() {
 					fontSize: 5,
 					color: "#FFFFFF",
 					strokeColor: "#000000",
-					strokeWidth: 5,
+					strokeWidth: 10,
 					textAlign: "center",
 					fontWeight: "bold",
 					background: {
@@ -347,7 +419,7 @@ export function RankingsView() {
 					transform: {
 						scaleX: 1,
 						scaleY: 1,
-						position: { x: 0, y: -850 },
+						position: { x: 0, y: -680 },
 						rotate: 0,
 					},
 				},
@@ -367,6 +439,65 @@ export function RankingsView() {
 			}
 		}
 	}, [globalHeader, globalHeaderElementId, editor]);
+
+	// Create or update global subheader element on timeline
+	useEffect(() => {
+		// If we already have a global subheader element, just update it
+		if (globalSubheaderElementId) {
+			editor.timeline.updateElements({
+				updates: [
+					{
+						trackId: globalSubheaderElementId.trackId,
+						elementId: globalSubheaderElementId.elementId,
+						patch: {
+							content: globalSubheader || " ",
+						},
+					},
+				],
+			});
+			return;
+		}
+
+		// Create new global subheader element if text is not empty
+		if (globalSubheader.trim()) {
+			const subheaderElement = buildTextElement({
+				raw: {
+					name: "Rankings Subheader",
+					content: globalSubheader,
+					fontSize: 7,
+					color: "#FFFFFF",
+					strokeColor: "#000000",
+					strokeWidth: 10,
+					textAlign: "center",
+					fontWeight: "bold",
+					background: {
+						color: "transparent",
+						enabled: false,
+					},
+					duration: Math.round(120 * TICKS_PER_SECOND),
+					transform: {
+						scaleX: 1,
+						scaleY: 1,
+						position: { x: 0, y: -600 },
+						rotate: 0,
+					},
+				},
+				startTime: 0,
+			});
+
+			const cmd = new InsertElementCommand({
+				element: subheaderElement,
+				placement: { mode: "auto", trackType: "text" },
+			});
+			editor.command.execute({ command: cmd });
+			const elementId = cmd.getElementId();
+			const trackId = cmd.getTrackId();
+			if (elementId && trackId) {
+				setGlobalSubheaderElementId({ trackId, elementId });
+				console.log("✓ Created global subheader element:", elementId);
+			}
+		}
+	}, [globalSubheader, globalSubheaderElementId, editor]);
 
 	const handleItemCountChange = (val: string) => {
 		if (val === "") {
@@ -397,7 +528,7 @@ export function RankingsView() {
 			updatedRankings.forEach((r) => {
 				const info = timelineElementMap.get(r.id);
 				if (info?.numberId && info?.trackId) {
-					const yPosition = -600 + (r.rankingNumber - 1) * 150;
+					const yPosition = -450 + (r.rankingNumber - 1) * 150;
 					updatesList.push({
 						trackId: info.trackId,
 						elementId: info.numberId,
@@ -452,7 +583,7 @@ export function RankingsView() {
 			updatedExistingRankings.forEach((r) => {
 				const info = timelineElementMap.get(r.id);
 				if (info?.numberId && info?.trackId) {
-					const yPosition = -600 + (r.rankingNumber - 1) * 150;
+					const yPosition = -450 + (r.rankingNumber - 1) * 150;
 					existingUpdatesList.push({
 						trackId: info.trackId,
 						elementId: info.numberId,
@@ -492,8 +623,8 @@ export function RankingsView() {
 			duration: 5, // default 5 seconds
 		};
 
-		// Calculate Y position: start at -600, then add 150px for each subsequent ranking
-		const yPosition = -600 + (rankingNumber - 1) * 150;
+		// Calculate Y position: start at -450, then add 150px for each subsequent ranking
+		const yPosition = -450 + (rankingNumber - 1) * 150;
 
 		// Calculate title start time (in ticks): sum of all previous title durations
 		const titleStartTimeSeconds = updatedExistingRankings.reduce(
@@ -612,7 +743,7 @@ export function RankingsView() {
 		updatedRankings.forEach((r) => {
 			const info = timelineElementMap.get(r.id);
 			if (info?.numberId && info?.trackId) {
-				const yPosition = -600 + (r.rankingNumber - 1) * 150;
+				const yPosition = -450 + (r.rankingNumber - 1) * 150;
 				updatesList.push({
 					trackId: info.trackId,
 					elementId: info.numberId,
@@ -1125,6 +1256,19 @@ export function RankingsView() {
 						placeholder="Enter header text for all rankings..."
 						value={globalHeader}
 						onChange={(e) => setGlobalHeader(e.target.value)}
+						className="h-9 text-sm bg-background font-medium"
+					/>
+				</div>
+
+				{/* Global subheader text */}
+				<div className="space-y-1">
+					<span className="block text-xs font-medium text-muted-foreground">
+						Subheader Text
+					</span>
+					<Input
+						placeholder="Enter subheader text..."
+						value={globalSubheader}
+						onChange={(e) => setGlobalSubheader(e.target.value)}
 						className="h-9 text-sm bg-background font-medium"
 					/>
 				</div>
