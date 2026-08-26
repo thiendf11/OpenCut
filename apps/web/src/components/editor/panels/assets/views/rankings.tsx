@@ -6,9 +6,11 @@ import { useState, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ColorPicker } from "@/components/ui/color-picker";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
 	buildTextElement,
 	buildElementFromMedia,
+	buildLibraryAudioElement,
 } from "@/lib/timeline/element-utils";
 import { InsertElementCommand } from "@/lib/commands/timeline";
 import { processMediaAssets } from "@/lib/media/processing";
@@ -138,6 +140,8 @@ export function RankingsView() {
 				titleTrackId: string;
 				videoId?: string;
 				videoTrackId?: string;
+				audioId?: string;
+				audioTrackId?: string;
 			}
 		>
 	>(() => {
@@ -156,6 +160,15 @@ export function RankingsView() {
 
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [dragOverId, setDragOverId] = useState<string | null>(null);
+	const [enableTransitionSound, setEnableTransitionSound] = useState<boolean>(() => {
+		if (typeof window !== "undefined" && activeProjectId) {
+			const saved = localStorage.getItem(
+				`opencut-rankings-sound-${activeProjectId}`,
+			);
+			if (saved !== null) return saved === "true";
+		}
+		return false;
+	});
 	const [globalHeader, setGlobalHeader] = useState<string>(() => {
 		if (typeof window !== "undefined" && activeProjectId) {
 			const saved = localStorage.getItem(
@@ -232,6 +245,9 @@ export function RankingsView() {
 		const savedSubheaderId = localStorage.getItem(
 			`opencut-rankings-subheader-id-${activeProjectId}`,
 		);
+		const savedSound = localStorage.getItem(
+			`opencut-rankings-sound-${activeProjectId}`,
+		);
 		const savedItemCount = localStorage.getItem(
 			`opencut-rankings-itemcount-${activeProjectId}`,
 		);
@@ -306,6 +322,10 @@ export function RankingsView() {
 			} catch (_e) {}
 		}
 
+		if (savedSound !== null) {
+			setEnableTransitionSound(savedSound === "true");
+		}
+
 		if (savedItemCount) {
 			const parsed = parseInt(savedItemCount, 10);
 			if (!isNaN(parsed)) setItemCount(parsed);
@@ -372,6 +392,14 @@ export function RankingsView() {
 			);
 		}
 	}, [globalSubheaderElementId, activeProjectId]);
+
+	useEffect(() => {
+		if (typeof window === "undefined" || !activeProjectId) return;
+		localStorage.setItem(
+			`opencut-rankings-sound-${activeProjectId}`,
+			String(enableTransitionSound),
+		);
+	}, [enableTransitionSound, activeProjectId]);
 
 	useEffect(() => {
 		if (typeof window === "undefined" || !activeProjectId) return;
@@ -701,6 +729,29 @@ export function RankingsView() {
 		const titleId = titleCmd.getElementId();
 		const titleTrackId = titleCmd.getTrackId();
 
+		// Add audio transition element at the end of the ranking duration
+		let audioId: string | undefined = undefined;
+		let audioTrackId: string | undefined = undefined;
+
+		if (enableTransitionSound) {
+			const audioDurationTicks = Math.round(1 * TICKS_PER_SECOND);
+			const audioStartTimeTicks = titleStartTimeTicks + Math.round(newRanking.duration * TICKS_PER_SECOND);
+			const audioElement = buildLibraryAudioElement({
+				sourceUrl: "/transitionswoosh.mp3",
+				name: `Ranking ${rankingNumber} Transition`,
+				duration: audioDurationTicks,
+				startTime: audioStartTimeTicks > 0 ? audioStartTimeTicks : 0,
+			});
+
+			const audioCmd = new InsertElementCommand({
+				element: audioElement,
+				placement: { mode: "auto", trackType: "audio" },
+			});
+			editor.command.execute({ command: audioCmd });
+			audioId = audioCmd.getElementId() ?? undefined;
+			audioTrackId = audioCmd.getTrackId() ?? undefined;
+		}
+
 		if (numberId && numberTrackId && titleId && titleTrackId) {
 			setTimelineElementMap((prev) => {
 				const newMap = new Map(prev);
@@ -709,6 +760,8 @@ export function RankingsView() {
 					numberId,
 					titleId,
 					titleTrackId,
+					audioId,
+					audioTrackId,
 				});
 				return newMap;
 			});
@@ -782,6 +835,12 @@ export function RankingsView() {
 					elementId: elementInfo.videoId,
 				});
 			}
+			if (elementInfo.audioId && elementInfo.audioTrackId) {
+				elementsToDelete.push({
+					trackId: elementInfo.audioTrackId,
+					elementId: elementInfo.audioId,
+				});
+			}
 			if (elementsToDelete.length > 0) {
 				editor.timeline.deleteElements({ elements: elementsToDelete });
 			}
@@ -804,6 +863,8 @@ export function RankingsView() {
 				titleTrackId: string;
 				videoId?: string;
 				videoTrackId?: string;
+				audioId?: string;
+				audioTrackId?: string;
 			}
 		>,
 	) => {
@@ -903,6 +964,27 @@ export function RankingsView() {
 								elementId: rElementInfo.titleId,
 								patch: { startTime: accumulatedTimeTicks },
 							});
+						}
+
+						// Check/update audio start time
+						if (rElementInfo.audioId && rElementInfo.audioTrackId) {
+							const audioTrack = editor.timeline.getTrackById({
+								trackId: rElementInfo.audioTrackId,
+							});
+							const audioElement = audioTrack?.elements.find(
+								(el) => el.id === rElementInfo.audioId,
+							);
+							if (audioElement) {
+								const audioDurationTicks = Math.round(1 * TICKS_PER_SECOND);
+								const expectedAudioStartTime = accumulatedTimeTicks + Math.round(r.duration * TICKS_PER_SECOND);
+								if (audioElement.startTime !== (expectedAudioStartTime > 0 ? expectedAudioStartTime : 0)) {
+									updatesList.push({
+										trackId: rElementInfo.audioTrackId,
+										elementId: rElementInfo.audioId,
+										patch: { startTime: expectedAudioStartTime > 0 ? expectedAudioStartTime : 0 },
+									});
+								}
+							}
 						}
 
 						// Check/update video start time & duration
@@ -1069,6 +1151,27 @@ export function RankingsView() {
 							elementId: rElementInfo.titleId,
 							patch: { startTime: accumulatedTimeTicks },
 						});
+					}
+
+					// Check/update audio start time
+					if (rElementInfo.audioId && rElementInfo.audioTrackId) {
+						const audioTrack = editor.timeline.getTrackById({
+							trackId: rElementInfo.audioTrackId,
+						});
+						const audioElement = audioTrack?.elements.find(
+							(el) => el.id === rElementInfo.audioId,
+						);
+						if (audioElement) {
+							const audioDurationTicks = Math.round(1 * TICKS_PER_SECOND);
+							const expectedAudioStartTime = accumulatedTimeTicks + Math.round(r.duration * TICKS_PER_SECOND);
+							if (audioElement.startTime !== (expectedAudioStartTime > 0 ? expectedAudioStartTime : 0)) {
+								updatesList.push({
+									trackId: rElementInfo.audioTrackId,
+									elementId: rElementInfo.audioId,
+									patch: { startTime: expectedAudioStartTime > 0 ? expectedAudioStartTime : 0 },
+								});
+							}
+						}
 					}
 
 					// Check/update video start time & duration
@@ -1271,6 +1374,20 @@ export function RankingsView() {
 						onChange={(e) => setGlobalSubheader(e.target.value)}
 						className="h-9 text-sm bg-background font-medium"
 					/>
+				</div>
+
+				<div className="flex items-center space-x-2 pt-2 pb-2">
+					<Checkbox
+						id="enable-transition-sound"
+						checked={enableTransitionSound}
+						onCheckedChange={(checked) => setEnableTransitionSound(!!checked)}
+					/>
+					<label
+						htmlFor="enable-transition-sound"
+						className="text-xs font-medium text-muted-foreground cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+					>
+						Add Swoosh Transition Sound
+					</label>
 				</div>
 
 				{/* Default colors for top 3 */}
