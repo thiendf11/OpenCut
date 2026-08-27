@@ -630,7 +630,16 @@ export function RankingsView() {
 			});
 		}
 
-		const rankingNumber = totalCount - index;
+		// Find the missing rankingNumber
+		const existingRanks = new Set(updatedExistingRankings.map(r => r.rankingNumber));
+		let rankingNumber = 1;
+		for (let i = totalCount; i >= 1; i--) {
+			if (!existingRanks.has(i)) {
+				rankingNumber = i;
+				break;
+			}
+		}
+
 		const numberColor =
 			rankingNumber <= 3 ? defaultColors[rankingNumber - 1] : "#FFFFFF";
 
@@ -654,11 +663,16 @@ export function RankingsView() {
 		// Calculate Y position: start at -450, then add 150px for each subsequent ranking
 		const yPosition = -450 + (rankingNumber - 1) * 150;
 
-		// Calculate title start time (in ticks): sum of all previous title durations
-		const titleStartTimeSeconds = updatedExistingRankings.reduce(
-			(acc, r) => acc + r.duration,
-			0,
+		const newRankingsArray = [...updatedExistingRankings, newRanking].sort(
+			(a, b) => b.rankingNumber - a.rankingNumber
 		);
+
+		// Calculate title start time (in ticks): sum of durations of items before this one
+		let titleStartTimeSeconds = 0;
+		for (const r of newRankingsArray) {
+			if (r.id === newRanking.id) break;
+			titleStartTimeSeconds += r.duration;
+		}
 		const titleStartTimeTicks = Math.round(
 			titleStartTimeSeconds * TICKS_PER_SECOND,
 		);
@@ -767,7 +781,45 @@ export function RankingsView() {
 			});
 		}
 
-		setRankings([...updatedExistingRankings, newRanking]);
+		setRankings(newRankingsArray);
+
+		// Shift start times of items after the newly inserted one
+		let accumulatedTimeSecondsForShift = titleStartTimeSeconds + newRanking.duration;
+		const indexOfNew = newRankingsArray.findIndex(r => r.id === newRanking.id);
+		
+		for (let i = indexOfNew + 1; i < newRankingsArray.length; i++) {
+			const r = newRankingsArray[i];
+			const rElementInfo = timelineElementMap.get(r.id);
+			if (rElementInfo) {
+				const accumulatedTimeTicks = Math.round(accumulatedTimeSecondsForShift * TICKS_PER_SECOND);
+				
+				const titleTrack = editor.timeline.getTrackById({ trackId: rElementInfo.titleTrackId });
+				const titleEl = titleTrack?.elements.find((el) => el.id === rElementInfo.titleId);
+				if (titleEl && titleEl.startTime !== accumulatedTimeTicks) {
+					existingUpdatesList.push({ trackId: rElementInfo.titleTrackId, elementId: rElementInfo.titleId, patch: { startTime: accumulatedTimeTicks } });
+				}
+				
+				if (rElementInfo.audioId && rElementInfo.audioTrackId) {
+					const audioTrack = editor.timeline.getTrackById({ trackId: rElementInfo.audioTrackId });
+					const audioEl = audioTrack?.elements.find((el) => el.id === rElementInfo.audioId);
+					if (audioEl) {
+						const expectedAudioStartTime = accumulatedTimeTicks + Math.round(r.duration * TICKS_PER_SECOND);
+						if (audioEl.startTime !== (expectedAudioStartTime > 0 ? expectedAudioStartTime : 0)) {
+							existingUpdatesList.push({ trackId: rElementInfo.audioTrackId, elementId: rElementInfo.audioId, patch: { startTime: expectedAudioStartTime > 0 ? expectedAudioStartTime : 0 } });
+						}
+					}
+				}
+				
+				if (rElementInfo.videoId && rElementInfo.videoTrackId) {
+					const videoTrack = editor.timeline.getTrackById({ trackId: rElementInfo.videoTrackId });
+					const videoEl = videoTrack?.elements.find((el) => el.id === rElementInfo.videoId);
+					if (videoEl && videoEl.startTime !== accumulatedTimeTicks) {
+						existingUpdatesList.push({ trackId: rElementInfo.videoTrackId, elementId: rElementInfo.videoId, patch: { startTime: accumulatedTimeTicks } });
+					}
+				}
+			}
+			accumulatedTimeSecondsForShift += r.duration;
+		}
 
 		if (existingUpdatesList.length > 0) {
 			editor.timeline.updateElements({ updates: existingUpdatesList });
@@ -776,16 +828,7 @@ export function RankingsView() {
 
 	const handleDeleteRanking = (id: string) => {
 		const newRankings = rankings.filter((r) => r.id !== id);
-		const newTotal = newRankings.length;
-		const updatedRankings = newRankings.map((r, idx) => {
-			const rNum = newTotal - idx;
-			return {
-				...r,
-				rankingNumber: rNum,
-				numberColor: rNum <= 3 ? defaultColors[rNum - 1] : r.numberColor,
-			};
-		});
-		setRankings(updatedRankings);
+		setRankings(newRankings);
 
 		const updatesList: Array<{
 			trackId: string;
@@ -793,25 +836,42 @@ export function RankingsView() {
 			patch: Partial<import("@/lib/timeline").TimelineElement>;
 		}> = [];
 
-		updatedRankings.forEach((r) => {
-			const info = timelineElementMap.get(r.id);
-			if (info?.numberId && info?.trackId) {
-				const yPosition = -450 + (r.rankingNumber - 1) * 150;
-				updatesList.push({
-					trackId: info.trackId,
-					elementId: info.numberId,
-					patch: {
-						content: `${r.rankingNumber}.`,
-						color: r.numberColor,
-						transform: {
-							scaleX: 1,
-							scaleY: 1,
-							position: { x: -400, y: yPosition },
-							rotate: 0,
-						},
-					},
-				});
+		// Ripple edit: shift remaining items in timeline
+		let accumulatedTimeSeconds = 0;
+		newRankings.forEach((r) => {
+			const rElementInfo = timelineElementMap.get(r.id);
+			if (rElementInfo) {
+				const accumulatedTimeTicks = Math.round(accumulatedTimeSeconds * TICKS_PER_SECOND);
+				
+				// Title
+				const titleTrack = editor.timeline.getTrackById({ trackId: rElementInfo.titleTrackId });
+				const titleElement = titleTrack?.elements.find((el) => el.id === rElementInfo.titleId);
+				if (titleElement && titleElement.startTime !== accumulatedTimeTicks) {
+					updatesList.push({ trackId: rElementInfo.titleTrackId, elementId: rElementInfo.titleId, patch: { startTime: accumulatedTimeTicks } });
+				}
+				
+				// Audio
+				if (rElementInfo.audioId && rElementInfo.audioTrackId) {
+					const audioTrack = editor.timeline.getTrackById({ trackId: rElementInfo.audioTrackId });
+					const audioElement = audioTrack?.elements.find((el) => el.id === rElementInfo.audioId);
+					if (audioElement) {
+						const expectedAudioStartTime = accumulatedTimeTicks + Math.round(r.duration * TICKS_PER_SECOND);
+						if (audioElement.startTime !== (expectedAudioStartTime > 0 ? expectedAudioStartTime : 0)) {
+							updatesList.push({ trackId: rElementInfo.audioTrackId, elementId: rElementInfo.audioId, patch: { startTime: expectedAudioStartTime > 0 ? expectedAudioStartTime : 0 } });
+						}
+					}
+				}
+				
+				// Video
+				if (rElementInfo.videoId && rElementInfo.videoTrackId) {
+					const videoTrack = editor.timeline.getTrackById({ trackId: rElementInfo.videoTrackId });
+					const videoElement = videoTrack?.elements.find((el) => el.id === rElementInfo.videoId);
+					if (videoElement && videoElement.startTime !== accumulatedTimeTicks) {
+						updatesList.push({ trackId: rElementInfo.videoTrackId, elementId: rElementInfo.videoId, patch: { startTime: accumulatedTimeTicks } });
+					}
+				}
 			}
+			accumulatedTimeSeconds += r.duration;
 		});
 
 		const elementInfo = timelineElementMap.get(id);
@@ -1043,12 +1103,6 @@ export function RankingsView() {
 		const ranking = rankings.find((r) => r.id === id);
 		if (!ranking) return;
 
-		const index = rankings.findIndex((r) => r.id === id);
-		const startTimeSeconds = rankings
-			.slice(0, index)
-			.reduce((acc, r) => acc + r.duration, 0);
-		const startTimeTicks = Math.round(startTimeSeconds * TICKS_PER_SECOND);
-
 		console.log("Processing video file...", file.name);
 
 		const processedAssets = await processMediaAssets({
@@ -1074,9 +1128,119 @@ export function RankingsView() {
 
 		console.log("Added to media library:", addedAsset.id);
 
-		const durationTicks = Math.round(
-			(addedAsset.duration || 30) * TICKS_PER_SECOND,
+		const videoDurationSeconds = addedAsset.duration || 30;
+
+		// 1. Shift the existing elements down BEFORE we insert the new video,
+		// to make sure there is a large enough gap for it on the timeline track.
+		let accumulatedTimeSeconds = 0;
+		const updatedRankings = rankings.map((r) =>
+			r.id === id
+				? {
+						...r,
+						maxDuration: videoDurationSeconds,
+						duration: videoDurationSeconds,
+					}
+				: r,
 		);
+
+		setRankings(updatedRankings);
+
+		const updatesList: Array<{
+			trackId: string;
+			elementId: string;
+			patch: Partial<import("@/lib/timeline").TimelineElement>;
+		}> = [];
+
+		updatedRankings.forEach((r) => {
+			const rElementInfo = timelineElementMap.get(r.id);
+			if (rElementInfo) {
+				const accumulatedTimeTicks = Math.round(
+					accumulatedTimeSeconds * TICKS_PER_SECOND,
+				);
+
+				// Check/update title start time
+				const titleTrack = editor.timeline.getTrackById({
+					trackId: rElementInfo.titleTrackId,
+				});
+				const titleElement = titleTrack?.elements.find(
+					(el) => el.id === rElementInfo.titleId,
+				);
+				if (
+					titleElement &&
+					titleElement.startTime !== accumulatedTimeTicks
+				) {
+					updatesList.push({
+						trackId: rElementInfo.titleTrackId,
+						elementId: rElementInfo.titleId,
+						patch: { startTime: accumulatedTimeTicks },
+					});
+				}
+
+				// Check/update audio start time
+				if (rElementInfo.audioId && rElementInfo.audioTrackId) {
+					const audioTrack = editor.timeline.getTrackById({
+						trackId: rElementInfo.audioTrackId,
+					});
+					const audioElement = audioTrack?.elements.find(
+						(el) => el.id === rElementInfo.audioId,
+					);
+					if (audioElement) {
+						const expectedAudioStartTime = accumulatedTimeTicks + Math.round(r.duration * TICKS_PER_SECOND);
+						if (audioElement.startTime !== (expectedAudioStartTime > 0 ? expectedAudioStartTime : 0)) {
+							updatesList.push({
+								trackId: rElementInfo.audioTrackId,
+								elementId: rElementInfo.audioId,
+								patch: { startTime: expectedAudioStartTime > 0 ? expectedAudioStartTime : 0 },
+							});
+						}
+					}
+				}
+
+				// Check/update video start time & duration
+				if (rElementInfo.videoId && rElementInfo.videoTrackId) {
+					const videoTrack = editor.timeline.getTrackById({
+						trackId: rElementInfo.videoTrackId,
+					});
+					const videoElement = videoTrack?.elements.find(
+						(el) => el.id === rElementInfo.videoId,
+					);
+					if (videoElement) {
+						const patch: Partial<import("@/lib/timeline").TimelineElement> = {};
+						if (videoElement.startTime !== accumulatedTimeTicks) {
+							patch.startTime = accumulatedTimeTicks;
+						}
+						const targetDurationTicks = Math.round(
+							r.duration * TICKS_PER_SECOND,
+						);
+						if (videoElement.duration !== targetDurationTicks) {
+							patch.duration = targetDurationTicks;
+						}
+						if (Object.keys(patch).length > 0) {
+							updatesList.push({
+								trackId: rElementInfo.videoTrackId,
+								elementId: rElementInfo.videoId,
+								patch,
+							});
+						}
+					}
+				}
+			}
+			accumulatedTimeSeconds += r.duration;
+		});
+
+		if (updatesList.length > 0) {
+			editor.timeline.updateElements({ updates: updatesList });
+		}
+
+		// 2. Now that the gap is widened on the timeline, insert the video
+		const index = rankings.findIndex((r) => r.id === id);
+		// Note: The previous items have not changed duration, so we can calculate startTime from updatedRankings
+		const startTimeSeconds = updatedRankings
+			.slice(0, index)
+			.reduce((acc, r) => acc + r.duration, 0);
+		const startTimeTicks = Math.round(startTimeSeconds * TICKS_PER_SECOND);
+		const durationTicks = Math.round(videoDurationSeconds * TICKS_PER_SECOND);
+
 		const element = buildElementFromMedia({
 			mediaId: addedAsset.id,
 			mediaType: addedAsset.type,
@@ -1085,9 +1249,20 @@ export function RankingsView() {
 			startTime: startTimeTicks,
 		});
 
+		// Find if we have an existing video track to use, so they all stay on the same track
+		let explicitVideoTrackId: string | undefined = undefined;
+		for (const info of timelineElementMap.values()) {
+			if (info.videoTrackId) {
+				explicitVideoTrackId = info.videoTrackId;
+				break;
+			}
+		}
+
 		const cmd = new InsertElementCommand({
 			element,
-			placement: { mode: "auto", trackType: "video" },
+			placement: explicitVideoTrackId 
+				? { mode: "explicit", trackId: explicitVideoTrackId }
+				: { mode: "auto", trackType: "video" },
 		});
 		editor.command.execute({ command: cmd });
 		const videoId = cmd.getElementId();
@@ -1105,110 +1280,6 @@ export function RankingsView() {
 				console.log(`Linked video to ranking item ${id}`);
 			}
 			setTimelineElementMap(updatedMap);
-
-			const videoDurationSeconds = addedAsset.duration || 30;
-
-			// Update ranking duration and calculate start times for subsequent items synchronously
-			let accumulatedTimeSeconds = 0;
-			const updatedRankings = rankings.map((r) =>
-				r.id === id
-					? {
-							...r,
-							maxDuration: videoDurationSeconds,
-							duration: videoDurationSeconds,
-						}
-					: r,
-			);
-
-			setRankings(updatedRankings);
-
-			const updatesList: Array<{
-				trackId: string;
-				elementId: string;
-				patch: Partial<import("@/lib/timeline").TimelineElement>;
-			}> = [];
-
-			updatedRankings.forEach((r) => {
-				const rElementInfo = updatedMap.get(r.id);
-				if (rElementInfo) {
-					const accumulatedTimeTicks = Math.round(
-						accumulatedTimeSeconds * TICKS_PER_SECOND,
-					);
-
-					// Check/update title start time
-					const titleTrack = editor.timeline.getTrackById({
-						trackId: rElementInfo.titleTrackId,
-					});
-					const titleElement = titleTrack?.elements.find(
-						(el) => el.id === rElementInfo.titleId,
-					);
-					if (
-						titleElement &&
-						titleElement.startTime !== accumulatedTimeTicks
-					) {
-						updatesList.push({
-							trackId: rElementInfo.titleTrackId,
-							elementId: rElementInfo.titleId,
-							patch: { startTime: accumulatedTimeTicks },
-						});
-					}
-
-					// Check/update audio start time
-					if (rElementInfo.audioId && rElementInfo.audioTrackId) {
-						const audioTrack = editor.timeline.getTrackById({
-							trackId: rElementInfo.audioTrackId,
-						});
-						const audioElement = audioTrack?.elements.find(
-							(el) => el.id === rElementInfo.audioId,
-						);
-						if (audioElement) {
-							const audioDurationTicks = Math.round(1 * TICKS_PER_SECOND);
-							const expectedAudioStartTime = accumulatedTimeTicks + Math.round(r.duration * TICKS_PER_SECOND);
-							if (audioElement.startTime !== (expectedAudioStartTime > 0 ? expectedAudioStartTime : 0)) {
-								updatesList.push({
-									trackId: rElementInfo.audioTrackId,
-									elementId: rElementInfo.audioId,
-									patch: { startTime: expectedAudioStartTime > 0 ? expectedAudioStartTime : 0 },
-								});
-							}
-						}
-					}
-
-					// Check/update video start time & duration
-					if (rElementInfo.videoId && rElementInfo.videoTrackId) {
-						const videoTrack = editor.timeline.getTrackById({
-							trackId: rElementInfo.videoTrackId,
-						});
-						const videoElement = videoTrack?.elements.find(
-							(el) => el.id === rElementInfo.videoId,
-						);
-						if (videoElement) {
-							const patch: Partial<import("@/lib/timeline").TimelineElement> = {};
-							if (videoElement.startTime !== accumulatedTimeTicks) {
-								patch.startTime = accumulatedTimeTicks;
-							}
-							const targetDurationTicks = Math.round(
-								r.duration * TICKS_PER_SECOND,
-							);
-							if (videoElement.duration !== targetDurationTicks) {
-								patch.duration = targetDurationTicks;
-							}
-							if (Object.keys(patch).length > 0) {
-								updatesList.push({
-									trackId: rElementInfo.videoTrackId,
-									elementId: rElementInfo.videoId,
-									patch,
-								});
-							}
-						}
-					}
-				}
-				accumulatedTimeSeconds += r.duration;
-			});
-
-			if (updatesList.length > 0) {
-				editor.timeline.updateElements({ updates: updatesList });
-			}
 		}
 	};
 
