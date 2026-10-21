@@ -62,8 +62,13 @@ export async function fetchMyInstantsDirectly({
 		params.append("q", "vn");
 	}
 
-	const url = `https://myinstants-api.vercel.app/${endpoint}?${params.toString()}`;
-	
+	const baseUrl = (
+		process.env.NEXT_PUBLIC_MYINSTANTS_API_URL ||
+		"https://myinstants-api.vercel.app"
+	).replace(/\/+$/, "");
+
+	const url = `${baseUrl}/${endpoint}?${params.toString()}`;
+
 	const response = await fetch(url, {
 		headers: {
 			Accept: "application/json",

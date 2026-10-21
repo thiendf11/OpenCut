@@ -183,10 +183,17 @@ async function searchMyInstants({
 		return { results: [], count: 0, hasNext: false };
 	}
 
-	let endpoint = 'search';
+	let endpoint = "search";
 	const params = new URLSearchParams();
 
-	const exactEndpoints = ["trending", "best", "recent", "uploaded", "favorites", "detail"];
+	const exactEndpoints = [
+		"trending",
+		"best",
+		"recent",
+		"uploaded",
+		"favorites",
+		"detail",
+	];
 	if (category && exactEndpoints.includes(category)) {
 		endpoint = category;
 		if (category === "trending" || category === "best") {
@@ -209,27 +216,39 @@ async function searchMyInstants({
 		params.append("q", myinstantsCat);
 	} else {
 		// Default when no query and no category
-		endpoint = 'trending';
+		endpoint = "trending";
 		params.append("q", "vn");
 	}
 
-	const url = `https://myinstants-api.vercel.app/${endpoint}?${params.toString()}`;
+	const baseUrl = (
+		webEnv.MYINSTANTS_API_URL ||
+		webEnv.NEXT_PUBLIC_MYINSTANTS_API_URL ||
+		"https://myinstants-api.vercel.app"
+	).replace(/\/+$/, "");
+
+	const url = `${baseUrl}/${endpoint}?${params.toString()}`;
 	console.log(`[MyInstants Debug] Fetching URL: ${url}`);
 
 	const response = await fetch(url, {
 		headers: {
 			"User-Agent":
 				"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-			"Accept": "application/json",
+			Accept: "application/json",
 		},
 	});
 
-	console.log(`[MyInstants Debug] Response status: ${response.status} ${response.statusText}`);
+	console.log(
+		`[MyInstants Debug] Response status: ${response.status} ${response.statusText}`,
+	);
 
 	if (!response.ok) {
 		const errorText = await response.text();
-		console.error(`[MyInstants Debug] Error response body: ${errorText.substring(0, 500)}`);
-		throw new Error(`Myinstants returned status ${response.status}: ${errorText.substring(0, 200)}`);
+		console.error(
+			`[MyInstants Debug] Error response body: ${errorText.substring(0, 500)}`,
+		);
+		throw new Error(
+			`Myinstants returned status ${response.status}: ${errorText.substring(0, 200)}`,
+		);
 	}
 
 	const data = await response.json();
@@ -332,10 +351,16 @@ export async function GET(request: NextRequest) {
 
 		if (provider === "myinstants") {
 			try {
-				const { results, count, hasNext } = await searchMyInstants({ query, category, page });
-				
-				const categoryQueryParam = category ? `&category=${encodeURIComponent(category)}` : "";
-				
+				const { results, count, hasNext } = await searchMyInstants({
+					query,
+					category,
+					page,
+				});
+
+				const categoryQueryParam = category
+					? `&category=${encodeURIComponent(category)}`
+					: "";
+
 				const responseData = {
 					count: count,
 					next: hasNext
@@ -367,11 +392,17 @@ export async function GET(request: NextRequest) {
 
 				return NextResponse.json(responseValidation.data);
 			} catch (myInstantsError) {
-				console.error("[MyInstants Debug] Exception caught during search:", myInstantsError);
-				const details = myInstantsError instanceof Error ? myInstantsError.message : String(myInstantsError);
+				console.error(
+					"[MyInstants Debug] Exception caught during search:",
+					myInstantsError,
+				);
+				const details =
+					myInstantsError instanceof Error
+						? myInstantsError.message
+						: String(myInstantsError);
 				return NextResponse.json(
 					{ error: "Failed to search MyInstants", details },
-					{ status: 502 }
+					{ status: 502 },
 				);
 			}
 		}

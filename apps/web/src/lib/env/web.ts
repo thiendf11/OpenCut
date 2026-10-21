@@ -9,6 +9,10 @@ const webEnvSchema = z.object({
 	// Public
 	NEXT_PUBLIC_SITE_URL: z.url().default("http://localhost:3000"),
 	NEXT_PUBLIC_MARBLE_API_URL: z.url(),
+	NEXT_PUBLIC_MYINSTANTS_API_URL: z.preprocess(
+		(val) => (val === "" ? undefined : val),
+		z.url().default("https://myinstants-api.vercel.app"),
+	),
 
 	// Server
 	DATABASE_URL: z
@@ -24,6 +28,10 @@ const webEnvSchema = z.object({
 	MARBLE_WORKSPACE_KEY: z.string(),
 	FREESOUND_CLIENT_ID: z.string(),
 	FREESOUND_API_KEY: z.string(),
+	MYINSTANTS_API_URL: z.preprocess(
+		(val) => (val === "" ? undefined : val),
+		z.url().optional(),
+	),
 });
 
 export type WebEnv = z.infer<typeof webEnvSchema>;

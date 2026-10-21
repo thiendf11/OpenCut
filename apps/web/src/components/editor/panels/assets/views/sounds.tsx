@@ -234,7 +234,10 @@ function SoundEffectsView() {
 		audioElement?.pause();
 
 		if (sound.previewUrl) {
-			const playUrl = sound.previewUrl.includes("myinstants.com")
+			const isMyInstants =
+				sound.previewUrl.includes("myinstants.com") ||
+				Boolean(sound.tags?.includes("myinstants"));
+			const playUrl = isMyInstants
 				? `/api/proxy?url=${encodeURIComponent(sound.previewUrl)}`
 				: sound.previewUrl;
 			const audio = new Audio(playUrl);
@@ -413,7 +416,10 @@ function SavedSoundsView() {
 		audioElement?.pause();
 
 		if (sound.previewUrl) {
-			const playUrl = sound.previewUrl.includes("myinstants.com")
+			const isMyInstants =
+				sound.previewUrl.includes("myinstants.com") ||
+				Boolean(sound.tags?.includes("myinstants"));
+			const playUrl = isMyInstants
 				? `/api/proxy?url=${encodeURIComponent(sound.previewUrl)}`
 				: sound.previewUrl;
 			const audio = new Audio(playUrl);

@@ -243,7 +243,10 @@ export const useSoundsStore = create<SoundsStore>((set, get) => ({
 			const editor = EditorCore.getInstance();
 			const currentTime = editor.playback.getCurrentTime();
 
-			const fetchUrl = audioUrl.includes("myinstants.com")
+			const isMyInstants =
+				audioUrl.includes("myinstants.com") ||
+				Boolean(sound.tags?.includes("myinstants"));
+			const fetchUrl = isMyInstants
 				? `/api/proxy?url=${encodeURIComponent(audioUrl)}`
 				: audioUrl;
 

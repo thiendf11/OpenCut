@@ -6,14 +6,24 @@ export async function GET(request: NextRequest) {
 		const targetUrl = searchParams.get("url");
 
 		if (!targetUrl) {
-			return NextResponse.json({ error: "Missing url parameter" }, { status: 400 });
+			return NextResponse.json(
+				{ error: "Missing url parameter" },
+				{ status: 400 },
+			);
 		}
 
 		const urlObj = new URL(targetUrl);
-		if (
-			urlObj.hostname !== "www.myinstants.com" &&
-			urlObj.hostname !== "myinstants.com"
-		) {
+		const allowedHosts = new Set(["www.myinstants.com", "myinstants.com"]);
+		const customApiUrl =
+			process.env.MYINSTANTS_API_URL ||
+			process.env.NEXT_PUBLIC_MYINSTANTS_API_URL;
+		if (customApiUrl) {
+			try {
+				allowedHosts.add(new URL(customApiUrl).hostname);
+			} catch {}
+		}
+
+		if (!allowedHosts.has(urlObj.hostname)) {
 			return NextResponse.json({ error: "Forbidden domain" }, { status: 403 });
 		}
 
