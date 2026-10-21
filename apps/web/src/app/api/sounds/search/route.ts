@@ -206,7 +206,7 @@ async function searchMyInstants({
 	} else if (query) {
 		endpoint = "search";
 		params.append("q", query);
-	} else if (category) {
+	} else if (category && category !== "all") {
 		endpoint = "search";
 		let myinstantsCat = category;
 		if (category === "anime") myinstantsCat = "anime";
@@ -251,7 +251,19 @@ async function searchMyInstants({
 		);
 	}
 
-	const data = await response.json();
+	const responseText = await response.text();
+	let data: any;
+	try {
+		data = JSON.parse(responseText);
+	} catch {
+		console.error(
+			`[MyInstants Debug] Failed to parse JSON response: ${responseText.substring(0, 500)}`,
+		);
+		throw new Error(
+			`Myinstants returned non-JSON response (status ${response.status}). Verify your MYINSTANTS_API_URL.`,
+		);
+	}
+
 	let dataList = [];
 	if (Array.isArray(data.data)) {
 		dataList = data.data;
